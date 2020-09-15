@@ -5,7 +5,7 @@
 set -e
 set -u
 
-VERSION=1.1
+VERSION=1.2
 
 CMD="$(basename "$0")"
 CONFIGDIR="$HOME/.config/${CMD#.sh}"
@@ -63,21 +63,19 @@ error() {
 }
 
 ################################################################################
-getcourse() {
-	local STR=$1
-
-	COURSE="$(sed -r 's/^.*(LF[A-Z][0-9]+).*$/\1/' <<<"$STR")"
-	if [[ -n $COURSE ]] ; then
-		#echo "\\renewcommand{\\mycourse}{$COURSE}"
-		echo "$COURSE"
-	fi
-}
-
-################################################################################
 gettitle() {
 	local STR=$1
 
-	ready-for.sh -l 2>/dev/null | grep "$STR" | sed -r "s/ *$STR - //"
+	[[ -n $TITLE ]] || TITLE="$(ready-for.sh -l 2>/dev/null \
+		| grep "$STR" | sed -r "s/ *$STR - //")"
+}
+
+################################################################################
+getcourse() {
+	local STR=$1
+
+	[[ -n $COURSE ]] || COURSE="$(sed -r 's/^.*(LF[A-Z][0-9]+).*$/\1/' <<<"$STR")"
+	gettitle "$COURSE"
 }
 
 ################################################################################
@@ -89,7 +87,6 @@ getrevision() {
 		REVISION=$REV
 	fi
 	REVISION="$(sed -e 's/^v//I' -e 's/^/V/' <<<"$REVISION")"
-	echo "$REVISION"
 }
 
 ################################################################################
@@ -100,7 +97,6 @@ getkey() {
 	if [[ -n $CODE && $CODE =~ ^[0-9a-z]+$ ]] ; then
 		KEY="$CODE"
 	fi
-	echo "$KEY"
 }
 
 ################################################################################
@@ -122,22 +118,22 @@ getevaluation() {
 
 	EVAL="$(sed -r 's/^.*http/http/' <<<"$STR")"
 	[[ $EVAL =~ https?:// ]] || error "Invalid eval URL: $EVAL"
-	if [[ -n $EVAL ]] ; then
-		echo "$EVAL"
-	fi
 }
 
 ################################################################################
 getdata_dir() {
 	local OTHER
+	info "Reading info from directory name"
 	# shellcheck disable=SC2034
 	IFS=- read -r DATE COURSE OTHER <<<"$(basename "$(pwd)")"
+	gettitle "$COURSE"
 }
 
 ################################################################################
 getdata_csv() {
 	local FILE="${1:-../Class Roster.csv}"
 	[[ $FILE =~ csv$ && -f $FILE ]] || return 0
+	info "Reading info from $FILE"
 
 	[[ -n $DATE ]] || error "No date found"
 	local MDY Y M D
@@ -152,17 +148,18 @@ getdata_csv() {
 ################################################################################
 getdata_pdf() {
 	local FILE=$1 LINE
-	local FILE="${1:-../Code.pdf}" LINE
+	local FILE="${1:-Code.pdf}" LINE
 	[[ $FILE =~ pdf$ && -f $FILE ]] || return 0
+	info "Reading info from $FILE"
 
 	while read -r LINE ; do
 		case "$LINE" in
-			*Subject:*LF*) COURSE="$(getcourse "$LINE")";;
-			*Book:*v[0-9]*) REVISION="$(getrevision "$LINE")";;
-			*Version:*v[0-9]*) REVISION="$(getrevision "$LINE")";;
-			*Reg*:*) KEY="$(getkey "$LINE")";;
-			*Survey*:*) EVAL="$(getevaluation "$LINE")";;
-			*Evaluation:*) EVAL="$(getevaluation "$LINE")";;
+			*Subject:*LF*) getcourse "$LINE";;
+			*Book:*v[0-9]*) getrevision "$LINE";;
+			*Version:*v[0-9]*) getrevision "$LINE";;
+			*Reg*:*) getkey "$LINE";;
+			*Survey*:*) getevaluation "$LINE";;
+			*Evaluation:*) getevaluation "$LINE";;
 		esac
 	done <<<"$(pdfgrep . "$FILE")"
 }
@@ -172,10 +169,8 @@ printdata() {
 	local BITLY
 
 	[[ -n $COURSE ]] || error "No course found"
-	TITLE="$(gettitle "$COURSE")"
 	[[ -n $TITLE ]] || error "No title found"
 	[[ -n $REVISION ]] || error "No version found"
-	REVISION="$(getrevision "$REVISION")"
 	[[ -n $KEY ]] || error "No registration key found"
 	[[ -n $EVAL ]] || error "No evaulation url found"
 
@@ -188,6 +183,7 @@ printdata() {
 	#shellcheck disable=SC2028
 	[[ -z $EMAIL ]] || echo "\\renewcommand{\\myemail}{$EMAIL}"
 	#shellcheck disable=SC2028
+
 	echo "\\renewcommand{\\mycourse}{$COURSE}"
 	#shellcheck disable=SC2028
 	echo "\\renewcommand{\\mytitle}{$TITLE}"
@@ -257,6 +253,7 @@ usage() {
 	exit 1
 }
 
+################################################################################
 if [[ -e $CONF ]] ; then
 	# shellcheck disable=SC1090
 	source "$CONF"
@@ -268,7 +265,6 @@ if [[ ! -e "$TEMPLATE/${SETTINGS##*/}" ]] ; then
 	warn "Creating $TEMPLATE/${SETTINGS##*/}"
 	ln -s $SETTINGS $TEMPLATE
 fi
-
 getdata_dir
 
 ################################################################################
@@ -286,7 +282,7 @@ while [[ $# -gt 0 ]] ; do
 		-n|--name) shift; NAME="$1";;
 		-o|--oe*) OPENENROL=y;;
 		--quiet) QUIET=y;;
-		-r|--rev*) shift; REVISION="$1";;
+		-r|--rev*) shift; getrevision "$1";;
 		-s|--start*|--time) shift; TIME="$1";;
 		--show) SHOW=y;;
 		--trace) set -x ;;
@@ -300,9 +296,10 @@ while [[ $# -gt 0 ]] ; do
 	shift
 done
 
+################################################################################
 debug "Date for $COURSE is $DATE"
-getdata_csv "$FILE"
 getdata_pdf "$FILE"
+getdata_csv "$FILE"
 LOCALCONF="intro.conf"
 if [[ -e $LOCALCONF ]] ; then
 	# shellcheck disable=SC1090

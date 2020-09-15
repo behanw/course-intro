@@ -1,3 +1,11 @@
 *.bak
+course-intro-orig.pdf
+course-intro.aux
+course-intro.log
+course-intro.nav
+course-intro.out
+course-intro.pdf
+course-intro.snm
+course-intro.toc
 course.tex
 settings.tex
