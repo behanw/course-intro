@@ -1,0 +1,242 @@
+\documentclass[bigger]{beamer}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage{longtable}
+\usepackage{float}
+\usepackage{wrapfig}
+\usepackage{soul}
+\usepackage{textcomp}
+\usepackage{marvosym}
+\usepackage{wasysym}
+\usepackage{latexsym}
+\usepackage{amssymb}
+\usepackage{hyperref}
+\usepackage[document]{ragged2e}
+\usepackage{lmodern}
+\usepackage{alltt}
+\usepackage[none]{hyphenat}
+
+\definecolor{lfblue}{HTML}{64b9e8}
+\newcommand{\boldx}[1]{\fontseries{bx}\selectfont #1}
+\usebackgroundtemplate{\includegraphics[width=\paperwidth]{IMAGES/title-bar.png}}
+\renewcommand{\indent}{\hspace*{1.6em}}
+
+\makeatletter
+\newcommand\HUGE{\@setfontsize\Huge{35}{45}}
+\makeatother
+
+\usetheme{default}
+\setbeamertemplate{navigation symbols}{}
+%%\usefonttheme{serif}
+\setbeamertemplate{frametitle}{\vspace{1.15em}\indent\color{lfblue}\textbf{\LARGE\insertframetitle}}
+\setbeamertemplate{framesubtitle}{\color{lfblue}\Huge\insertframesubtitle}
+%%\setbeamercolor{background canvas}{bg=black}
+%%\setbeamercolor{normal text}{fg=black}
+
+\newcommand{\mycourse}{LFXXXX}
+\newcommand{\mytitle}{Default Course Title}
+\newcommand{\myversion}{vX.Y}
+\newcommand{\myclasstime}{9am-5pm}
+\newcommand{\myclasstz}{CST}
+\newcommand{\myname}{My Name}
+\newcommand{\myemail}{me@example.com}
+\newcommand{\myblurb}{A blurb about me}
+\newcommand{\mykey}{AKEY}
+\newcommand{\myevaluation}{https://www.surveymonkey.com/}
+\newcommand{\myeval}{https://www.surveymonkey.com/}
+
+\newif\ifBITLY
+\BITLYtrue
+\newif\ifCORP
+\CORPtrue
+\newif\ifVIRTUAL
+\VIRTUALtrue
+
+\input{settings}
+\input{course}
+
+\begin{document}
+
+%%% Title Page %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+{ \usebackgroundtemplate{\includegraphics[width=\paperwidth]{IMAGES/title-page.png}}
+\begin{frame}
+	\hfill
+	\begin{minipage}[t]{0.62\textwidth}
+		\color{lfblue}\sffamily
+		\HUGE\boldx{\mycourse}\par
+		\Large\textbf{\mytitle}
+	\end{minipage}
+\end{frame} }
+
+%%% Logistics %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{frame}
+	\frametitle{Class Logistics}
+	\Large
+	\begin{itemize} 
+		\item \myclasstime{} \ifVIRTUAL(\myclasstz)\fi
+		\item 15 min break morning, and afternoon
+		\item 60 min lunch break at mid-day
+		\ifVIRTUAL
+			\item Please keep yourself muted when not speaking
+			\item Ask questions in chat as they come up
+		\else % !VIRTUAL
+			\item Ask questions as they come up
+		\fi % !VIRTUAL
+		\item I may put off answering questions until later
+	\end{itemize}
+\end{frame}
+
+%%% VM Image %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{frame}
+	\frametitle{Do you have a Linux Machine?}
+	\LARGE
+	\begin{itemize} 
+		\item Virtual Machines
+		\begin{itemize} 
+			\item {\Large\textbf{\url{bit.ly/LF-vm}}}
+			\item {\small\url{https://training.linuxfoundation.org/cm/VIRTUAL_MACHINE_IMAGES}}
+		\end{itemize}
+		\vspace{0.5em}
+		\item Get your Linux ready for the class
+		\begin{itemize} 
+			\item {\Large\textbf{\url{bit.ly/LFprep}}}
+			\item {\small\url{https://training.linuxfoundation.org/cm/prep/}}
+		\end{itemize}
+	\end{itemize}
+\end{frame}
+
+%%% READY-FOR %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{frame}
+	\frametitle{Is your Linux Machine Ready?}
+	\LARGE
+	\begin{itemize} 
+		\item {\Large{}Visit \textbf{\url{bit.ly/LFprep}}}
+		\vspace{0.5em}
+		\item Download script
+	\end{itemize}
+	\vspace{-0.5em}
+	{\footnotesize\url{https://training.linuxfoundation.org/cm/prep/ready-for.sh}}
+	\vspace{0.5em}
+	\begin{itemize} 
+		\item Run the following as a regular user
+	\end{itemize}
+        \large
+	\begin{alltt}
+host:\$ chmod 755 ready-for.sh \par
+host:\$ ./ready-for.sh \mycourse{} \par
+host:\$ ./ready-for.sh –install \mycourse{}
+	\end{alltt}
+\end{frame}
+
+%%% COURSE MATERIALS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{frame}
+	\frametitle{Course Materials}
+	\LARGE
+	\begin{itemize} 
+		\item Download the course materials:
+	\end{itemize} 
+	\vspace{-0.5em}
+	{\normalsize\url{https://training.linuxfoundation.org/cm/\mycourse/}}
+	\vspace{0.5em}
+	\begin{itemize} 
+		\item Username: \textbf{LFtraining}
+		\item Password: \textbf{Penguin2014}
+		\vspace{0.5em}
+		\item Filenames:
+		\begin{itemize} 
+			\Large
+			\item \mycourse\_\myversion\_SOLUTIONS.tar.bz2
+			\item \mycourse\_\myversion\_RESOURCES.tar
+		\end{itemize} 
+	\end{itemize}
+\end{frame}
+
+%%% INTRODUCTIONS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{frame}
+	\frametitle{Introductions}
+	\LARGE
+	\begin{itemize} 
+		\item Your name
+		\item What you do for your day job
+		\item Your past experience with Linux
+		\item Your expectations for this course
+		\ifVIRTUAL
+			\item Your Linux Distribution
+			\item (Your Time Zone)
+		\fi % VIRTUAL
+	\end{itemize} 
+\end{frame}
+
+%%% ME %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{frame}
+	\frametitle{Me First}
+	\LARGE
+	\begin{itemize} 
+		\item \myname
+		\item \url{\myemail}
+		\item \myblurb
+	\end{itemize} 
+\end{frame}
+
+%%% INTRODUCTIONS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{frame}
+	\frametitle{Introductions}
+	\LARGE
+	\begin{itemize} 
+		\item Your name
+		\item What you do for your day job
+		\item Your past experience with Linux
+		\item Your expectations for this course
+		\ifVIRTUAL
+			\item Your Linux Distribution
+			\item (Your Time Zone)
+		\fi % VIRTUAL
+	\end{itemize} 
+\end{frame}
+
+%%% COURSE REGISTRATION %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{frame}
+	\frametitle{Course Registration}
+	\Large{}
+	\begin{itemize} 
+		\ifCORP
+			%\item \footnotesize{}Not if this is an Open Enrollment class \Large{}
+			\item You'll have to create an LFID
+			\item Write your name as it should appear on the certificate
+			\item Use the same email for registration and evaluation
+			\item Key: \textbf{\mykey}
+			\item \textbf{\url{bit.ly/LFredeem}}
+			\item \small\url{https://trainingportal.linuxfoundation.org/redeem}
+		\else % !CORP
+			\item You're already registered
+			\item On to the course!
+		\fi % !CORP
+	\end{itemize} 
+\end{frame}
+
+%%% COURSE EVALUTAION %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{frame}
+	\frametitle{Course Evaluation}
+	\LARGE
+	\begin{itemize} 
+		\item Use the same email as you used for registration
+		\ifBITLY
+			\item \textbf{\url{\myeval}}
+		\fi % BITLY
+		\item \normalsize\url{\myevaluation}
+	\end{itemize} 
+\end{frame}
+
+%%% THANK YOU %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{frame}
+	\frametitle{Thank You}
+	\LARGE
+	\begin{itemize} 
+		\item Email me if you have further questions
+		\item \myname
+		\item \url{\myemail}
+	\end{itemize} 
+\end{frame}
+
+\end{document}
