@@ -17,8 +17,8 @@ You can install this tool as follows:
   * You can replace the course number with any valid LF course code
   * Instead of "OE" for Open Enrolment, you can substitute a company name
   * Instead of "Virtual" you can substitute the city for in-person course
-1. mkdir YYYY.MM.DD-LFD450-OE-Virtual
-1. course-intro
+13. cd YYYY.MM.DD-LFD450-OE-Virtual
+14. course-intro
 
 The script will try to guess information about the course from the directory
 name, from a pdf called Code.pdf (found in the dated directroy created above,
