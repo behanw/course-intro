@@ -45,13 +45,16 @@
 \newcommand{\mykey}{AKEY}
 \newcommand{\myevaluation}{https://www.surveymonkey.com/}
 \newcommand{\myeval}{https://www.surveymonkey.com/}
+%\newcommand{\solutions}{\item No SOLUTIONS file}
+\newcommand{\solutions}{\item \mycourse\_\myversion\_SOLUTIONS.tar.bz2}
+\newcommand{\resources}{}
 
-\newif\ifBITLY
-\BITLYtrue
-\newif\ifCORP
-\CORPtrue
-\newif\ifVIRTUAL
-\VIRTUALtrue
+\newif\ifBITLY{}
+\BITLYtrue{}
+\newif\ifCORP{}
+\CORPtrue{}
+\newif\ifVIRTUAL{}
+\VIRTUALtrue{}
 
 \input{settings}
 \input{course}
@@ -77,7 +80,7 @@
 		\item \myclasstime{} \ifVIRTUAL(\myclasstz)\fi
 		\item 15 min break morning, and afternoon
 		\item 60 min lunch break at mid-day
-		\ifVIRTUAL
+		\ifVIRTUAL{}
 			\item Please keep yourself muted when not speaking
 			\item Ask questions in chat as they come up
 		\else % !VIRTUAL
@@ -125,10 +128,12 @@
 	\begin{alltt}
 host:\$ chmod 755 ready-for.sh \par
 host:\$ ./ready-for.sh \mycourse{} \par
-host:\$ ./ready-for.sh –install \mycourse{}
+host:\$ ./ready-for.sh --install \mycourse{}
 	\end{alltt}
 \end{frame}
 
+%\item \mycourse\_\myversion\_SOLUTIONS.tar.bz2
+%\item \mycourse\_\myversion\_RESOURCES.tar
 %%% COURSE MATERIALS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{frame}
 	\frametitle{Course Materials}
@@ -146,8 +151,8 @@ host:\$ ./ready-for.sh –install \mycourse{}
 		\item Filenames:
 		\begin{itemize} 
 			\Large
-			\item \mycourse\_\myversion\_SOLUTIONS.tar.bz2
-			\item \mycourse\_\myversion\_RESOURCES.tar
+			\solutions
+			\resources
 		\end{itemize} 
 	\end{itemize}
 \end{frame}
@@ -161,7 +166,7 @@ host:\$ ./ready-for.sh –install \mycourse{}
 		\item What you do for your day job
 		\item Your past experience with Linux
 		\item Your expectations for this course
-		\ifVIRTUAL
+		\ifVIRTUAL{}
 			\item Your Linux Distribution
 			\item (Your Time Zone)
 		\fi % VIRTUAL
@@ -173,9 +178,9 @@ host:\$ ./ready-for.sh –install \mycourse{}
 	\frametitle{Me First}
 	\LARGE
 	\begin{itemize} 
-		\item \myname
+		\item \myname{}
 		\item \url{\myemail}
-		\item \myblurb
+		\item \myblurb{}
 	\end{itemize} 
 \end{frame}
 
@@ -188,7 +193,7 @@ host:\$ ./ready-for.sh –install \mycourse{}
 		\item What you do for your day job
 		\item Your past experience with Linux
 		\item Your expectations for this course
-		\ifVIRTUAL
+		\ifVIRTUAL{}
 			\item Your Linux Distribution
 			\item (Your Time Zone)
 		\fi % VIRTUAL
@@ -198,10 +203,9 @@ host:\$ ./ready-for.sh –install \mycourse{}
 %%% COURSE REGISTRATION %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{frame}
 	\frametitle{Course Registration}
-	\Large{}
 	\begin{itemize} 
-		\ifCORP
-			%\item \footnotesize{}Not if this is an Open Enrollment class \Large{}
+		\ifCORP{}
+			\Large{}
 			\item You'll have to create an LFID
 			\item Write your name as it should appear on the certificate
 			\item Use the same email for registration and evaluation
@@ -209,6 +213,7 @@ host:\$ ./ready-for.sh –install \mycourse{}
 			\item \textbf{\url{bit.ly/LFredeem}}
 			\item \small\url{https://trainingportal.linuxfoundation.org/redeem}
 		\else % !CORP
+			\LARGE{}
 			\item You're already registered
 			\item On to the course!
 		\fi % !CORP
@@ -221,7 +226,7 @@ host:\$ ./ready-for.sh –install \mycourse{}
 	\LARGE
 	\begin{itemize} 
 		\item Use the same email as you used for registration
-		\ifBITLY
+		\ifBITLY{}
 			\item \textbf{\url{\myeval}}
 		\fi % BITLY
 		\item \normalsize\url{\myevaluation}
@@ -234,7 +239,7 @@ host:\$ ./ready-for.sh –install \mycourse{}
 	\LARGE
 	\begin{itemize} 
 		\item Email me if you have further questions
-		\item \myname
+		\item \myname{}
 		\item \url{\myemail}
 	\end{itemize} 
 \end{frame}

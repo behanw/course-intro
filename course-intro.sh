@@ -1,32 +1,45 @@
 #!/bin/bash
 # Copyright (c) 2020 Behan Webster
 # License: GPL
+#
+# The following packages need installing:
+#      bash, curl, gawk, jq, make, sed, texlive
+# The following packages are recommended:
+#      aspell, evince
 
 set -e
 set -u
 
-VERSION=1.2
+VERSION=1.4
 
+#===============================================================================
 CMD="$(basename "$0")"
-CONFIGDIR="$HOME/.config/${CMD#.sh}"
+CONFIGDIR="$HOME/.config/${CMD%.sh}"
 CONF="$CONFIGDIR/settings.conf"
 MYPID="$$"
 
+#===============================================================================
 BITLY_TOKEN=
 COPY=
 COURSE=
+CURL="curl -s"
 DATE=
 DEBUG=
+DESKTOPDIR="$HOME/Desktop"
 EMAIL=
 EVAL=
 FILE=
 INPERSON=
+JSON="https://training.linuxfoundation.org/cm/prep/data/ready-for.json"
 KEY=
 NAME=
 OPENENROL=
 QUIET=
 REVISION=
+ROSTER=
 SHOW=
+TEMPLATE=
+TEST=
 TIME=
 TITLE=
 VERBOSE=
@@ -39,6 +52,21 @@ YELLOW="\e[0;33m"
 CYAN="\e[0;36m"
 #BLUE="\e[0;34m"
 BACK="\e[0m"
+
+################################################################################
+metadata() {
+	info "Name:      '$NAME'"
+	info "Email:     '$EMAIL'"
+	info "OpenEnrol: '${OPENENROL:-n}'"
+	info "InPerson:  '${INPERSON:-n}'"
+	info "Course:    '$COURSE'"
+	info "Title:     '$TITLE'"
+	info "Revision:  '$REVISION'"
+	info "Time:      '$TIME'"
+	info "TimeZone:  '$ZONE'"
+	info "Key:       '$KEY'"
+	info "Eval:      '$EVAL'"
+}
 
 ################################################################################
 debug() {
@@ -58,16 +86,27 @@ warn() {
 ################################################################################
 error() {
 	echo -e "${RED}E:" "$@" "$BACK" >&2
+	metadata
 	kill -9 "$MYPID"
 	exit 1
+}
+
+################################################################################
+getjson() {
+	$CURL "$JSON" | jq "$@" | tr -d '"'
 }
 
 ################################################################################
 gettitle() {
 	local STR=$1
 
-	[[ -n $TITLE ]] || TITLE="$(ready-for.sh -l 2>/dev/null \
-		| grep "$STR" | sed -r "s/ *$STR - //")"
+	if [[ -z $TITLE ]] ; then
+		TITLE="$(ready-for.sh -l 2>/dev/null \
+			| grep "$STR" | sed -r "s/ *$STR - //")"
+	fi
+	if [[ -z $TITLE ]] ; then
+		TITLE="$(getjson ".activities | .$COURSE | .title")"
+	fi
 }
 
 ################################################################################
@@ -90,6 +129,11 @@ getrevision() {
 }
 
 ################################################################################
+getcm() {
+	getjson ".activities | .$COURSE | .materials | .[]"
+}
+
+################################################################################
 getkey() {
 	local STR=$1 CODE
 
@@ -101,15 +145,18 @@ getkey() {
 
 ################################################################################
 getbitly() {
-	local URL=$1
+	local URL=$1 API AUTH TYPE DATA
 	[[ -n $BITLY_TOKEN ]] || error "No BITLY_TOKEN specified in $CONF"
-	local API='https://api-ssl.bitly.com/v4/shorten'
-	curl -s \
-	-H "Authorization: Bearer $BITLY_TOKEN" \
-	-H "Content-Type: application/json" \
-	-X POST $API \
-	-d "{\"long_url\":\"$URL\"}" \
-	| jq .id
+	[[ -n $URL ]] || error "No evaluation URL specified for $COURSE"
+	API='https://api-ssl.bitly.com/v4/shorten'
+	AUTH="Authorization: Bearer $BITLY_TOKEN"
+	TYPE="Content-Type: application/json"
+	DATA="{\"long_url\":\"$URL\"}"
+	if [[ -n $TEST ]] ; then
+		echo $CURL -H "$AUTH" -H "TYPE" -X POST "$API" -d "$DATA"
+	else
+		$CURL -H "$AUTH" -H "TYPE" -X POST "$API" -d "$DATA" | jq .id
+	fi
 }
 
 ################################################################################
@@ -122,27 +169,61 @@ getevaluation() {
 
 ################################################################################
 getdata_dir() {
-	local OTHER
-	info "Reading info from directory name"
+	local NAME COMPANY LOCATION OTHER
+	NAME="$(basename "$(pwd)")"
 	# shellcheck disable=SC2034
-	IFS=- read -r DATE COURSE OTHER <<<"$(basename "$(pwd)")"
+	IFS=- read -r DATE COURSE COMPANY LOCATION OTHER <<<"$NAME"
+
+	#-----------------------------------------------------------------------
+	if [[ $DATE =~ ^[0-9]{2} ]] ; then
+		info "Reading info from '$NAME'"
+		warn "  Detecting date as $DATE"
+	else
+		DATE=
+	fi
+
+	if [[ -z $COURSE ]] ; then
+		return 0
+	fi
 	gettitle "$COURSE"
+
+	#-----------------------------------------------------------------------
+	if [[ -n $COMPANY ]] ; then
+		if [[ $COMPANY == "OE" ]] ; then
+			OPENENROL=y
+			warn "  Detecting Open Enrolment class"
+		else
+			warn "  Detecting Corporate class for $COMPANY"
+		fi
+	fi
+
+	#-----------------------------------------------------------------------
+	if [[ -n $LOCATION ]] ; then
+		if [[ $LOCATION = "Virtual" ]] ; then
+			warn "  Detecting Virtual class"
+		else
+			INPERSON=y
+			warn "  Detecting In-person class in $LOCATION"
+		fi
+	fi
 }
 
 ################################################################################
 getdata_csv() {
-	local FILE="${1:-../Class Roster.csv}"
+	local FILE="${1:-$ROSTER}"
 	[[ $FILE =~ csv$ && -f $FILE ]] || return 0
-	info "Reading info from $FILE"
 
 	[[ -n $DATE ]] || error "No date found"
 	local MDY Y M D
+	info "DATE:$DATE"
 	IFS=. read -r Y M D <<<"$DATE"
 	MDY="${M#0}[/]${D#0}[/]$Y"
+	warn "Reading info from '$FILE'"
+	info "DATE:$DATE MDY:$MDY $Y $M $D"
 
-	[[ -n $REVISION ]] || REVISION="$(awk -F\" "/$MDY/ {print \$22}" <"$FILE")"
-	[[ -n $KEY ]] || KEY="$(awk -F\" "/$MDY/ {print \$24}" <"$FILE")"
-	[[ -n $EVAL ]] || EVAL="$(awk -F\" "/$MDY/ {print \$26}" <"$FILE")"
+	[[ -n $REVISION ]] || REVISION="$(gawk -F\" "/$MDY/ {print \$22}" <"$FILE")"
+	[[ -n $KEY ]] || KEY="$(gawk -F\" "/$MDY/ {print \$24}" <"$FILE")"
+	[[ -n $EVAL ]] || EVAL="$(gawk -F\" "/$MDY/ {print \$26}" <"$FILE")"
 }
 
 ################################################################################
@@ -150,7 +231,7 @@ getdata_pdf() {
 	local FILE=$1 LINE
 	local FILE="${1:-Code.pdf}" LINE
 	[[ $FILE =~ pdf$ && -f $FILE ]] || return 0
-	info "Reading info from $FILE"
+	warn "Reading info from '$FILE'"
 
 	while read -r LINE ; do
 		case "$LINE" in
@@ -166,13 +247,13 @@ getdata_pdf() {
 
 ################################################################################
 printdata() {
-	local BITLY
+	local BITLY FILE
 
 	[[ -n $COURSE ]] || error "No course found"
 	[[ -n $TITLE ]] || error "No title found"
 	[[ -n $REVISION ]] || error "No version found"
 	[[ -n $KEY ]] || error "No registration key found"
-	[[ -n $EVAL ]] || error "No evaulation url found"
+	[[ -n $EVAL ]] || error "No evaluation url found"
 
 	#shellcheck disable=SC2028
 	[[ -z $TIME ]] || echo "\\renewcommand{\\myclasstime}{$TIME}"
@@ -182,8 +263,8 @@ printdata() {
 	[[ -z $NAME ]] || echo "\\renewcommand{\\myname}{$NAME}"
 	#shellcheck disable=SC2028
 	[[ -z $EMAIL ]] || echo "\\renewcommand{\\myemail}{$EMAIL}"
-	#shellcheck disable=SC2028
 
+	#shellcheck disable=SC2028
 	echo "\\renewcommand{\\mycourse}{$COURSE}"
 	#shellcheck disable=SC2028
 	echo "\\renewcommand{\\mytitle}{$TITLE}"
@@ -194,31 +275,49 @@ printdata() {
 	#shellcheck disable=SC2028
 	echo "\\renewcommand{\\myevaluation}{$EVAL}"
 
+	#-----------------------------------------------------------------------
 	if [[ -z $BITLY_TOKEN ]] ; then
 		warn "No BITLY_TOKEN specified in $CONF"
 		warn "Disabling bit.ly links for evals"
-		echo '\BITLYfalse'
+		echo '\BITLYfalse{}'
 	else
 		BITLY="$(getbitly "$EVAL" | sed -r 's/\"//g' )"
-		#shellcheck disable=SC2028
-		echo "\\renewcommand{\\myeval}{$BITLY}"
+		if [[ -n $BITLY && $BITLY != null ]] ; then
+			#shellcheck disable=SC2028
+			echo "\\renewcommand{\\myeval}{$BITLY}"
+		else
+			warn "No bit.ly link generated. Disabling short links for eval"
+			echo '\BITLYfalse{}'
+		fi
 	fi
 
+	#-----------------------------------------------------------------------
 	if [[ -n $OPENENROL ]] ; then
 		info "Building Open Enrolment $COURSE"
 		#shellcheck disable=SC2028
-		echo '\CORPfalse'
+		echo '\CORPfalse{}'
 	else
-		info "Building Coporporate $COURSE (Add --oe to change)"
+		warn "Building Corporate $COURSE (Add --oe to change)"
 	fi
 
+	#-----------------------------------------------------------------------
 	if [[ -n $INPERSON ]] ; then
 		info "Building In-person $COURSE"
 		#shellcheck disable=SC2028
-		echo '\VIRTUALfalse'
+		echo '\VIRTUALfalse{}'
 	else
-		info "Building Virtual $COURSE (add --inperson to change)"
+		warn "Building Virtual $COURSE (add --inperson to change)"
 	fi
+
+	#-----------------------------------------------------------------------
+	for FILE in $(getcm) ; do
+		#shellcheck disable=SC2028
+		FILE="$(sed -r -e "s/V[0-9.]+/$REVISION/;" -e 's/_/\\_/g' <<<"$FILE")"
+		case "$FILE" in
+			*SOLUTIONS*) echo "\\renewcommand{\\solutions}{\\item $FILE}";;
+			*RESOURCES*) echo "\\renewcommand{\\resources}{\\item $FILE}";;
+		esac
+	done
 }
 
 ################################################################################
@@ -228,29 +327,63 @@ usage() {
 	fi
 	cat <<-HELP
 	Version v$VERSION
-	Usage: $CMD [options] [course] [YYYY.MM.DD]
-	    --course <course>
-	    --date <date>
-	    --evaluation <evaluation url>
-	    --file <file>
-	    --inperson
-	    --key <key>
-	    --mail <email>
-	    --name <name>
-	    --name <name>
-	    --oe-course
-	    --revision <revision>
-	    --time <start-end times>
-	    --timezone <TZ>
-	    --title "<title>"
-	    --debug
-	    --help
-	    --quiet
-	    --show
-	    --trace
-	    --verbose
+	Usage: $CMD [options]
+	    -c --course <course>
+	    -d --date <YYYY.MM.DD>
+	    -e --evaluation <evaluation url>
+	    -f --file <file>
+	    -i --inperson
+	    -k --key <key>
+	    -m --mail <email>
+	    -n --name <name>
+	    -o --oe-course
+	    -r --revision <revision>
+	    -s --time <start-end times>
+	    -t --title "<title>"
+	    -z --timezone <TZ>
+	    -C --copy
+	    -D --debug
+	    -h --help
+	    -q --quiet
+	    -S --show
+	    -T --test
+	    -R --trace
+	    -v --verbose
+	    -V --version
 	HELP
 	exit 1
+}
+
+################################################################################
+parse_args() {
+	while [[ $# -gt 0 ]] ; do
+		case "$1" in
+			-c|--cou*) shift; COURSE="$1";;
+			-C|--copy) COPY=y;;
+			-d|--date*) shift; DATE="$1";;
+			-D|--debug) DEBUG=y;;
+			-e|--eval*) shift; EVAL="$1";;
+			-f|--file*) shift; FILE="$1";;
+			-i|--in*) INPERSON=y;;
+			-k|--key*) shift; KEY="$1";;
+			-m|--mail) shift; EMAIL="$1";;
+			-n|--name) shift; NAME="$1";;
+			-o|--oe*) OPENENROL=y;;
+			-q|--quiet) QUIET=y;;
+			-r|--rev*) shift; getrevision "$1";;
+			-s|--start*|--time) shift; TIME="$1";;
+			-S|--show) SHOW=y;;
+			-t|--tit*) shift; TITLE="$1";;
+			-R|--trace) set -x ;;
+			-T|--test) TEST="echo";;
+			-z|--tz|--timezone|--zone) shift; ZONE="$1";;
+			-v|--verbose) VERBOSE="-v";;
+			-V|--version) echo "$CMD v$VERSION"; exit 0;;
+			-h|--help) usage ;;
+			*) usage "$1" ;;
+		esac
+		shift
+	done
 }
 
 ################################################################################
@@ -258,53 +391,28 @@ if [[ -e $CONF ]] ; then
 	# shellcheck disable=SC1090
 	source "$CONF"
 fi
-TEXFILE="${TEXTFILE:-$TEMPLATE/course.tex}"
-PDFFILE="${PDFTFILE:-$TEMPLATE/course-intro.pdf}"
-SETTINGS="${SETTINGS:-CONFIGDIR/settings.tex}"
-if [[ ! -e "$TEMPLATE/${SETTINGS##*/}" ]] ; then
-	warn "Creating $TEMPLATE/${SETTINGS##*/}"
-	ln -s $SETTINGS $TEMPLATE
+[[ -n $TEMPLATE ]] || error "No TEMPLATE specified in $CONF"
+TEXFILE="${TEXFILE:-$TEMPLATE/course.tex}"
+PDFFILE="${PDFFILE:-$TEMPLATE/course-intro.pdf}"
+SETTINGS="${SETTINGS:-settings.tex}"
+if [[ ! -e "$TEMPLATE/$SETTINGS" ]] ; then
+	warn "Creating $TEMPLATE/$SETTINGS"
+	rm -f "$TEMPLATE/$SETTINGS"
+	ln -s "$CONFIGDIR/$SETTINGS" "$TEMPLATE/settings.tex"
 fi
+
+################################################################################
 getdata_dir
-
-################################################################################
-while [[ $# -gt 0 ]] ; do
-	case "$1" in
-		--debug) DEBUG=y;;
-		-c|--cou*) shift; COURSE="$1";;
-		--copy) COPY=y;;
-		-d|--date*) shift; DATE="$1";;
-		-e|--eval*) shift; EVAL="$1";;
-		-f|--file*) shift; FILE="$1";;
-		-i|--in*) INPERSON=y;;
-		-k|--key*) shift; KEY="$1";;
-		-m|--mail) shift; EMAIL="$1";;
-		-n|--name) shift; NAME="$1";;
-		-o|--oe*) OPENENROL=y;;
-		--quiet) QUIET=y;;
-		-r|--rev*) shift; getrevision "$1";;
-		-s|--start*|--time) shift; TIME="$1";;
-		--show) SHOW=y;;
-		--trace) set -x ;;
-		-t|--tit*) shift; TITLE="$1";;
-		-tz|--timezone|--zone) shift; ZONE="$1";;
-		-v|--verbose) VERBOSE="-v";;
-		-V|--Version) echo "$CMD v$VERSION"; exit 0;;
-		-h|--help) usage ;;
-		*) usage "$1" ;;
-	esac
-	shift
-done
-
-################################################################################
-debug "Date for $COURSE is $DATE"
+parse_args "$@"
 getdata_pdf "$FILE"
 getdata_csv "$FILE"
 LOCALCONF="intro.conf"
 if [[ -e $LOCALCONF ]] ; then
+	warn "Reading info from '$LOCALCONF'"
 	# shellcheck disable=SC1090
 	source "$LOCALCONF"
 fi
+[[ -n $QUIET ]] || metadata
 
 ################################################################################
 if [[ -n $DEBUG ]] ; then
@@ -316,7 +424,8 @@ else
 	if [[ -n $VERBOSE ]] ; then
 		make -C "$TEMPLATE" clean all
 	else
-		make -C "$TEMPLATE" clean all >/dev/null
+		make -s -C "$TEMPLATE" clean spell
+		make -s -C "$TEMPLATE" >/dev/null
 	fi
 	cp $VERBOSE "$PDFFILE" .
 	[[ -z $COPY && -n $DESKTOPDIR ]] || cp $VERBOSE "$PDFFILE" "$DESKTOPDIR"
