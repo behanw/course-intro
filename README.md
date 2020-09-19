@@ -30,26 +30,26 @@ $HOME/.config/course-intro directory.
 
 ## Command line options
 
-Usage: course-intro.sh [options]
-    -c --course <course>
-    -d --date <YYYY.MM.DD>
-    -e --evaluation <evaluation url>
-    -f --file <file>
-    -i --inperson
-    -k --key <key>
-    -m --mail <email>
-    -n --name <name>
-    -o --oe-course
-    -r --revision <revision>
-    -s --time <start-end times>
-    -t --title "<title>"
-    -z --timezone <TZ>
-    -C --copy
-    -D --debug
-    -h --help
-    -q --quiet
-    -S --show
-    -T --test
-    -R --trace
-    -v --verbose
-    -V --version
+    Usage: course-intro.sh [options]
+        -c --course <course>
+        -d --date <YYYY.MM.DD>
+        -e --evaluation <evaluation url>
+        -f --file <file>
+        -i --inperson
+        -k --key <key>
+        -m --mail <email>
+        -n --name <name>
+        -o --oe-course
+        -r --revision <revision>
+        -s --time <start-end times>
+        -t --title "<title>"
+        -z --timezone <TZ>
+        -C --copy
+        -D --debug
+        -h --help
+        -q --quiet
+        -S --show
+        -T --test
+        -R --trace
+        -v --verbose
+        -V --version
