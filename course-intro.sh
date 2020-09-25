@@ -1,16 +1,16 @@
 #!/bin/bash
-# Copyright (c) 2020 Behan Webster
+# Copyright (c) 2020 Behan Webster <behanw@converseincode.com>
 # License: GPL
 #
 # The following packages need installing:
-#      bash, curl, gawk, jq, make, sed, texlive
+#      bash, curl, ghostscript, jq, make, miller, pdfgrep, sed, texlive
 # The following packages are recommended:
 #      aspell, evince
 
 set -e
 set -u
 
-VERSION=1.4
+VERSION=1.5
 
 #===============================================================================
 CMD="$(basename "$0")"
@@ -21,6 +21,7 @@ MYPID="$$"
 #===============================================================================
 BITLY_TOKEN=
 COPY=
+COMPANY=
 COURSE=
 CURL="curl -s"
 DATE=
@@ -32,6 +33,7 @@ FILE=
 INPERSON=
 JSON="https://training.linuxfoundation.org/cm/prep/data/ready-for.json"
 KEY=
+LOCATION=
 NAME=
 OPENENROL=
 QUIET=
@@ -86,14 +88,13 @@ warn() {
 ################################################################################
 error() {
 	echo -e "${RED}E:" "$@" "$BACK" >&2
-	metadata
 	kill -9 "$MYPID"
 	exit 1
 }
 
 ################################################################################
 getjson() {
-	$CURL "$JSON" | jq "$@" | tr -d '"'
+	$CURL "$JSON" | jq --raw-output "$@"
 }
 
 ################################################################################
@@ -102,7 +103,7 @@ gettitle() {
 
 	if [[ -z $TITLE ]] ; then
 		TITLE="$(ready-for.sh -l 2>/dev/null \
-			| grep "$STR" | sed -r "s/ *$STR - //")"
+			| grep "$STR" | sed -r -e "s/ *$STR - //")"
 	fi
 	if [[ -z $TITLE ]] ; then
 		TITLE="$(getjson ".activities | .$COURSE | .title")"
@@ -138,7 +139,8 @@ getkey() {
 	local STR=$1 CODE
 
 	CODE="$(sed -r 's/^.*: *//' <<<"$STR")"
-	if [[ -n $CODE && $CODE =~ ^[0-9a-z]+$ ]] ; then
+	debug "getkey: $STR -> $CODE"
+	if [[ -n $CODE && $CODE =~ ^[0-9A-Za-z]+$ ]] ; then
 		KEY="$CODE"
 	fi
 }
@@ -153,9 +155,9 @@ getbitly() {
 	TYPE="Content-Type: application/json"
 	DATA="{\"long_url\":\"$URL\"}"
 	if [[ -n $TEST ]] ; then
-		echo $CURL -H "$AUTH" -H "TYPE" -X POST "$API" -d "$DATA"
+		echo "$CURL -H \"$AUTH\" -H \"$TYPE\" -X POST \"$API\" -d \"$DATA\"" >&2
 	else
-		$CURL -H "$AUTH" -H "TYPE" -X POST "$API" -d "$DATA" | jq .id
+		$CURL -H "$AUTH" -H "$TYPE" -X POST "$API" -d "$DATA" | jq .id
 	fi
 }
 
@@ -169,61 +171,173 @@ getevaluation() {
 
 ################################################################################
 getdata_dir() {
-	local NAME COMPANY LOCATION OTHER
+	local NAME CORP LOC OTHER
 	NAME="$(basename "$(pwd)")"
 	# shellcheck disable=SC2034
-	IFS=- read -r DATE COURSE COMPANY LOCATION OTHER <<<"$NAME"
+	local NDATE NCOURSE CORP LOC OTHER <<<"$NAME"
+	IFS=- read -r NDATE NCOURSE CORP LOC OTHER <<<"$NAME"
+
+	debug "getdata: DATE:$DATE COURSE:$COURSE KEY:$KEY EVAL:$EVAL OTHER:$OTHER"
 
 	#-----------------------------------------------------------------------
-	if [[ $DATE =~ ^[0-9]{2} ]] ; then
+	if [[ -z $DATE && $NDATE =~ ^[0-9]{2} ]] ; then
 		info "Reading info from '$NAME'"
+		DATE="$NDATE"
 		warn "  Detecting date as $DATE"
-	else
-		DATE=
 	fi
 
-	if [[ -z $COURSE ]] ; then
-		return 0
+	#-----------------------------------------------------------------------
+	if [[ -z $COURSE && -n $NCOURSE ]] ; then
+		COURSE="$NCOURSE"
 	fi
+	[[ -n $COURSE ]] || return 0
 	gettitle "$COURSE"
 
 	#-----------------------------------------------------------------------
-	if [[ -n $COMPANY ]] ; then
-		if [[ $COMPANY == "OE" ]] ; then
+	if [[ -z $OPENENROL && -n $CORP ]] ; then
+		COMPANY="$CORP"
+		if [[ $CORP == "OE" ]] ; then
 			OPENENROL=y
 			warn "  Detecting Open Enrolment class"
 		else
-			warn "  Detecting Corporate class for $COMPANY"
+			OPENENROL=n
+			warn "  Detecting Corporate class for $CORP"
 		fi
 	fi
 
 	#-----------------------------------------------------------------------
-	if [[ -n $LOCATION ]] ; then
-		if [[ $LOCATION = "Virtual" ]] ; then
+	if [[ -z $INPERSON && -n $LOC ]] ; then
+		LOCATION="$LOC"
+		if [[ $LOC = "Virtual" ]] ; then
+			INPERSON=n
 			warn "  Detecting Virtual class"
 		else
 			INPERSON=y
-			warn "  Detecting In-person class in $LOCATION"
+			warn "  Detecting In-person class in $LOC"
 		fi
 	fi
 }
 
 ################################################################################
-getdata_csv() {
-	local FILE="${1:-$ROSTER}"
-	[[ $FILE =~ csv$ && -f $FILE ]] || return 0
+save_json() {
+	local DIR=$1 CSV=$2 MDY=$3 CORP
+	local META="$DIR/meta.json"
+	local NEW="$DIR/meta-new.json"
+	local TMP="$DIR/meta-new.json.tmp"
 
+	mlr --c2j --jlistwrap cat <<<"$(tr -d '"' <"$CSV")" \
+		| jq ".[] | select(.\"Session Start Date\" | contains(\"$MDY\"))" \
+		>"$NEW"
+	if [[ ! -s $NEW ]] ; then
+		rm -f "$NEW"
+	elif [[ -e $META ]] ; then
+		CORP="$(jq '.Company' "$META")"
+		if [[ $CORP != null ]] ; then
+			COMPANY="$CORP"
+			jq ".Company=$CORP" "$NEW" > "$TMP"
+			if [[ -s $TMP ]] ; then
+				mv "$TMP" "$NEW"
+			else
+				warn "$TMP is empty"
+				rm -f "$TMP"
+			fi
+		fi
+		if cmp --quiet "$META" "$NEW" ; then
+			rm -f "$NEW"
+		else
+			diff -u "$META" "$NEW"
+		fi
+	else
+		mv "$NEW" "$META"
+	fi
+}
+
+################################################################################
+ymd_to_mdy() {
+	local DATE=$1 Y M D MDY
 	[[ -n $DATE ]] || error "No date found"
-	local MDY Y M D
-	info "DATE:$DATE"
-	IFS=. read -r Y M D <<<"$DATE"
-	MDY="${M#0}[/]${D#0}[/]$Y"
-	warn "Reading info from '$FILE'"
-	info "DATE:$DATE MDY:$MDY $Y $M $D"
+	if [[ $DATE =~ \. ]] ; then
+		IFS=. read -r Y M D <<<"$DATE"
+	elif [[ $DATE =~ - ]] ; then
+		IFS=- read -r Y M D <<<"$DATE"
+	elif [[ $DATE =~ / ]] ; then
+		IFS=- read -r M D Y <<<"$DATE"
+	elif [[ $DATE =~ 20[0-9]{6} ]] ; then
+		IFS=- read -r Y M D <<<"$(sed -re 's/([0-9]{4})([0-9]{2})([0-9]{2})/\1-\2-\3/' <<<"$DATE")"
+	fi
+	[[ -n $D ]] || error "Date format not recognized: $DATE"
+	MDY="${M#0}/${D#0}/$Y"
+	debug "ymd_to_mdy: DATE:$DATE Y:$Y M:$M D:$D MDY:$MDY"
+	echo "$MDY"
+}
 
-	[[ -n $REVISION ]] || REVISION="$(gawk -F\" "/$MDY/ {print \$22}" <"$FILE")"
-	[[ -n $KEY ]] || KEY="$(gawk -F\" "/$MDY/ {print \$24}" <"$FILE")"
-	[[ -n $EVAL ]] || EVAL="$(gawk -F\" "/$MDY/ {print \$26}" <"$FILE")"
+################################################################################
+getdata_csv() {
+	local FILE="${1:-$ROSTER}" MDY
+	[[ $FILE =~ csv$ && -f $FILE ]] || return 0
+	warn "Reading info from '$FILE'"
+
+	MDY="$(ymd_to_mdy "$DATE")"
+
+	save_json "$(pwd)" "$FILE" "$MDY"
+
+	local D R K E
+	IFS=, read -r D R K E <<<"$(mlr --csv cut -f \
+		'"Session Start Date","Session Course Material Version","Session Class Key","Survey URL"' \
+		<<<"$(tr -d '"' <"$FILE")" | grep "^$MDY")"
+
+	[[ -n $REVISION ]] || getrevision "$R"
+	[[ -n $KEY ]] || getkey "$K"
+	[[ -n $EVAL ]] || getevaluation "$E"
+}
+
+DATECMD="$(command -v gdate)" || DATECMD="$(command -v date)" || error "No date found"
+
+################################################################################
+read_json() {
+	local JSON=$1 NAME=$2 META=${3:-} DATA
+
+	DATA="$(jq --raw-output ".\"$NAME\"" "$JSON")"
+
+	case "$META" in
+		Date) [[ ! $DATA =~ / ]] || DATA="$($DATECMD -d "$DATA" "+%Y.%m.%d")";;
+	esac
+
+	echo "$DATA"
+}
+
+################################################################################
+getdata_json() {
+	local JSON="meta.json" CORP LOC
+
+	[[ -f "$JSON" ]] || return 0
+	warn "Reading info from '$JSON'"
+
+	[[ -n $DATE ]] || DATE="$(read_json "$JSON" "Session Start Date" "Date")"
+	[[ -n $COURSE ]] || getcourse "$(read_json "$JSON" "Session Course Code")"
+	[[ -n $REVISION ]] || getrevision "$(read_json "$JSON" "Session Course Material Version")"
+	[[ -n $KEY ]] || getkey "$(read_json "$JSON" "Session Class Key")"
+	[[ -n $EVAL ]] || getevaluation "$(read_json "$JSON" "Survey URL")"
+
+	CORP="$(read_json "$JSON" "Company")"
+	if [[ $CORP != null ]] ; then
+		COMPANY="$CORP"
+		if [[ $CORP == "OE" ]] ; then
+			OPENENROL=y
+		else
+			OPENENROL=n
+		fi
+	fi
+
+	LOC="$(read_json "$JSON" "Session Location")"
+	if [[ $LOC != null ]] ; then
+		LOCATION="$LOC"
+		if [[ $LOC = "Virtual" ]] ; then
+			INPERSON=n
+		else
+			INPERSON=y
+		fi
+	fi
 }
 
 ################################################################################
@@ -292,7 +406,7 @@ printdata() {
 	fi
 
 	#-----------------------------------------------------------------------
-	if [[ -n $OPENENROL ]] ; then
+	if [[ $OPENENROL == y ]] ; then
 		info "Building Open Enrolment $COURSE"
 		#shellcheck disable=SC2028
 		echo '\CORPfalse{}'
@@ -301,7 +415,7 @@ printdata() {
 	fi
 
 	#-----------------------------------------------------------------------
-	if [[ -n $INPERSON ]] ; then
+	if [[ $INPERSON == y ]] ; then
 		info "Building In-person $COURSE"
 		#shellcheck disable=SC2028
 		echo '\VIRTUALfalse{}'
@@ -313,6 +427,7 @@ printdata() {
 	for FILE in $(getcm) ; do
 		#shellcheck disable=SC2028
 		FILE="$(sed -r -e "s/V[0-9.]+/$REVISION/;" -e 's/_/\\_/g' <<<"$FILE")"
+		#shellcheck disable=SC2028
 		case "$FILE" in
 			*SOLUTIONS*) echo "\\renewcommand{\\solutions}{\\item $FILE}";;
 			*RESOURCES*) echo "\\renewcommand{\\resources}{\\item $FILE}";;
@@ -402,8 +517,9 @@ if [[ ! -e "$TEMPLATE/$SETTINGS" ]] ; then
 fi
 
 ################################################################################
-getdata_dir
 parse_args "$@"
+getdata_json
+getdata_dir
 getdata_pdf "$FILE"
 getdata_csv "$FILE"
 LOCALCONF="intro.conf"
@@ -428,7 +544,8 @@ else
 		make -s -C "$TEMPLATE" >/dev/null
 	fi
 	cp $VERBOSE "$PDFFILE" .
-	[[ -z $COPY && -n $DESKTOPDIR ]] || cp $VERBOSE "$PDFFILE" "$DESKTOPDIR"
+	[[ -z $COPY && -n $DESKTOPDIR ]] || cp -v "$PDFFILE" \
+		"$DESKTOPDIR/course-intro-$DATE-$COURSE-$REVISION-$COMPANY-$LOCATION.pdf"
 	info "Created ${PDFFILE##*/}"
 	[[ -z $SHOW ]] || (nohup evince "${PDFFILE##*/}" >/dev/null 2>&1 &)
 fi
