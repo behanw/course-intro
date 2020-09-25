@@ -147,7 +147,7 @@ above this section.
         -k --key <key>                    Registration code for OE class
         -m --mail <email>                 Instructor email
         -n --name <name>                  Instructor name
-        -o --oe-course                    An Open Enrolment course (detault Corporate)
+        -o --oe-course                    An Open Enrolment course (default Corporate)
         -r --revision <revision>          Version number of the course (e.g. V5.10)
         -s --time <start-end times>       Daily start and end time of the class
         -t --title "<title>"              Title of the course

@@ -82,7 +82,7 @@ info() {
 
 ################################################################################
 warn() {
-	echo -e "${YELLOW}W:" "$@" "$BACK" >&2
+	[[ -n $QUIET ]] || echo -e "${YELLOW}W:" "$@" "$BACK" >&2
 }
 
 ################################################################################
@@ -443,28 +443,28 @@ usage() {
 	cat <<-HELP
 	Version v$VERSION
 	Usage: $CMD [options]
-	    -c --course <course>
-	    -d --date <YYYY.MM.DD>
-	    -e --evaluation <evaluation url>
-	    -f --file <file>
-	    -i --inperson
-	    -k --key <key>
-	    -m --mail <email>
-	    -n --name <name>
-	    -o --oe-course
-	    -r --revision <revision>
-	    -s --time <start-end times>
-	    -t --title "<title>"
-	    -z --timezone <TZ>
-	    -C --copy
-	    -D --debug
-	    -h --help
-	    -q --quiet
-	    -S --show
-	    -T --test
-	    -R --trace
-	    -v --verbose
-	    -V --version
+	    -c --course <course>         LFD/LFS course code/number
+	    -d --date <YYYY.MM.DD>       Year.Month.Day of class
+	    -e --evaluation <eval url>   The evaluation survey URL
+	    -f --file <file>             The file from which to read metadata
+	    -i --inperson                An in-person class (default Virtual)
+	    -k --key <key>               Registration code for OE class
+	    -m --mail <email>            Instructor email
+	    -n --name <name>             Instructor name
+	    -o --oe-course               An Open Enrolment course (default Corporate)
+	    -r --revision <revision>     Version number of the course (e.g. V5.10)
+	    -s --time <start-end times>  Daily start and end time of the class
+	    -t --title "<title>"         Title of the course
+	    -z --timezone <TZ>           Time zone of for the daily class times
+	    -C --copy                    Copy the resulting PDF to $DESKTOPDIR
+	    -D --debug                   Show debugging messages
+	    -R --trace                   Show code trace
+	    -S --show                    View PDF with evince
+	    -T --test                    Test output
+	    -V --version                 Show version of the script
+	    -h --help                    This help
+	    -q --quiet                   Turn off most output
+	    -v --verbose                 Show latex build output
 	HELP
 	exit 1
 }
@@ -541,7 +541,11 @@ else
 		make -C "$TEMPLATE" clean all
 	else
 		make -s -C "$TEMPLATE" clean spell
-		make -s -C "$TEMPLATE" >/dev/null
+		if [[ -z $QUIET ]] ; then
+			make -s -C "$TEMPLATE" >/dev/null
+		else
+			make -s -C "$TEMPLATE" >/dev/null 2>&1
+		fi
 	fi
 	cp $VERBOSE "$PDFFILE" .
 	[[ -z $COPY && -n $DESKTOPDIR ]] || cp -v "$PDFFILE" \
