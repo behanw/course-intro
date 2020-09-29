@@ -78,16 +78,17 @@ VERBOSE=
 #JSON_INSTR="Session Instructor"
 #JSON_PASSWORD="Session Zoom Password"
 #JSON_SKU="Session SKU"
-#JSON_STUDENTS="# of Learners"
 #JSON_USERNAME="Session Zoom Username"
 #JSON_ZOOM="Session Zoom Link"
 JSON_BITLY="Survey Short URL"
 JSON_CODE="Session Course Code"
 JSON_COMPANY="Company"
 JSON_DATE="Session Start Date"
+JSON_DAYS="Course Days"
 JSON_FILES="Course Materials"
 JSON_KEY="Session Class Key"
 JSON_LOC="Session Location"
+JSON_STUDENTS="# of Learners"
 JSON_SURVEY="Survey URL"
 JSON_TIME="Course Time"
 JSON_TITLE="Course Title"
@@ -207,7 +208,7 @@ save_json() {
 	if [[ ! -s $NEW ]] ; then
 		rm -f "$NEW"
 	elif [[ -e $META ]] ; then
-		for NAME in "$JSON_COMPANY" "$JSON_LOC" ; do
+		for NAME in "$JSON_COMPANY" "$JSON_DAYS" "$JSON_LOC" "$JSON_STUDENTS" ; do
 			DATA="$(read_json "$META" "$NAME")"
 			add_json "$NEW" "$NAME" "$DATA"
 		done
@@ -265,6 +266,7 @@ getcm() {
 	FILES="$(read_json "$METAFILE" "$JSON_FILES")"
 	[[ -n $FILES ]] || FILES="$(query_json ".activities | .$COURSE | .materials | .[]")"
 	if [[ -z $FILES ]] ; then
+		# shellcheck disable=SC2086
 		FILES="$($CURL $LFOPTS "$LFCMURL/$COURSE/" \
 			| grep "${COURSE}_$REVISION" \
 			| sed 's/^.*href="//; s/".*$//')"
@@ -478,15 +480,45 @@ getdata_dir() {
 }
 
 ################################################################################
+# Try to find useful information in random lines of text in the input PDF
+makeguess() {
+	local LINE="$1" MDY="$2" STUDENTS DELIVERY NOD
+
+	DELIVERY="$(cut -c149-167 <<<"$LINE" | sed -e 's/ //g; s/0016/2020/')"
+	#DELIVERY="${LINE:151,23}"
+	if [[ -n $DELIVERY && $DELIVERY == "$MDY" ]] ; then
+		info "  $COURSE is delivered on '$DELIVERY'"
+	else
+		return 0
+	fi
+
+	STUDENTS="$(cut -c127-147 <<<"$LINE" | sed -re 's/^ *//; s/([0-9]+).*$/\1/')"
+	#STUDENTS="$(sed -re 's/^([0-9]+).*$/\1/' <<<"${LINE:129,21}")"
+	if [[ -n $STUDENTS && $STUDENTS =~ [0-9] ]] ; then
+		debug "  $COURSE has '$STUDENTS' students"
+		add_json "$METAFILE" "$JSON_STUDENTS" "$STUDENTS"
+	fi
+
+	NOD="$(cut -c169-182 <<<"$LINE" | sed -e 's/ //g')"
+	#NOD="${LINE:175,16}"
+	if [[ -n $NOD && $NOD =~ [0-9] ]] ; then
+		debug "  $COURSE is '$NOD' days long"
+		add_json "$METAFILE" "$JSON_DAYS" "$NOD"
+	fi
+
+	debug "makeguess: STUDENTS:$STUDENTS DELIVERY:$DELIVERY NOD:$NOD"
+}
+
+################################################################################
 # Look up class metadata from local printed confirmation email as a PDF
 getdata_pdf() {
-	local FILE=$1 LINE
-	local FILE="${1:-$CODEPDF}" LINE
+	local FILE="${1:-$CODEPDF}" LINE MDY
 	debug "getdata_pdf: $FILE"
 	[[ $FILE =~ pdf$ && -f $FILE ]] || return 0
 	info "Reading info from './$FILE'"
+	MDY="$(ymd_to_mdy "$DATE")"
 
-	while read -r LINE ; do
+	while IFS='' read -r LINE ; do
 		case "$LINE" in
 			*Subject:*LF*) getcourse "$LINE";;
 			*Book:*v[0-9]*) getrevision "$LINE";;
@@ -494,6 +526,7 @@ getdata_pdf() {
 			*Reg*:*) getkey "$LINE";;
 			*Survey*:*) getevaluation "$LINE";;
 			*Evaluation:*) getevaluation "$LINE";;
+			*) makeguess "$LINE" "$MDY";;
 		esac
 	done <<<"$(pdfgrep . "$FILE")"
 }
