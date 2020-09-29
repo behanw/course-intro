@@ -1,8 +1,17 @@
 # Generate a course introduction slide deck for teaching an LF class
 
-## Install/Quickstart
+## Install Instructions
 
-You can install this tool as follows:
+### Quickstart
+
+ 1. Install packages: curl ghostscript jq make miller pdfgrep sed texlive
+ 2. git clone https://github.com/behanw/course-intro.git
+ 3. Install example-\* files into $HOME/.config/course-intro/ and customize
+ 4. Run course-intro.sh in the directory for a class to generate a slide deck
+
+### Exact steps
+
+You can install this tool with these exact steps:
 
  1. sudo apt install curl ghostscript jq make miller pdfgrep sed texlive
  2. cd to/some/directory
@@ -178,12 +187,12 @@ above this section.
     $ course-intro
 
     I: Reading info from '2020.09.07-LFD435-Sprocket_Corp-Mohave_Desert' 
-    W:   Detecting date as 2020.09.07
-    W:   Detecting Corporate class for Sprocket_Corp
-    W:   Detecting In-person class in Mohave_Desert
-    W: Reading info from 'Code.pdf' 
-    W: Reading info from '$HOME/Expenses/Class Roster.csv' 
-    W: Reading info from 'intro.conf' 
+    I:   Detecting date as 2020.09.07
+    I:   Detecting Corporate class for Sprocket_Corp
+    I:   Detecting In-person class in Mohave_Desert
+    I: Reading info from 'Code.pdf' 
+    I: Reading info from '$HOME/Expenses/Class Roster.csv' 
+    I: Reading info from 'intro.conf' 
     I: Name:      'Wile E. Coyote (Genius)' 
     I: Email:     'wile.e.coyote@acme.desert' 
     I: OpenEnrol: 'n' 
@@ -195,8 +204,8 @@ above this section.
     I: TimeZone:  'MST' 
     I: Key:       'sprocket2020' 
     I: Eval:      'https://www.surveymonkey.com/r/SPROCKET?course=LFD435_20200907_CORP' 
-    W: Building Corporate LFD435 (Add --oe to change) 
-    W: Building In-person LFD435
+    W: Building Corporate class for Sprocket_Corp (Add --oe to change) 
+    W: Building In-person class in Mohave_Desert
     I: Spellchecking course-intro.tex
     I: Building course-intro.tex
     I: Compressing course-intro.pdf

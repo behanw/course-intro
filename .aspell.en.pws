@@ -1,10 +1,11 @@
-personal_ws-1.1 en 137 
+personal_ws-1.1 en 143 
 AKEY
 AUTH
 BITLY
 BITLYfalse
 Bitly
 CACHEDIR
+CLI
 CMD
 CODEPDF
 CONF
@@ -21,8 +22,10 @@ GTR
 INPERSON
 InPerson
 LF
+LFCMURL
 LFD
 LFID
+LFOPTS
 LFS
 LFXXXX
 LFtraining
@@ -46,11 +49,13 @@ READYFOR
 READYJSON
 SKU
 STR
+TEMPTEX
 TEXFILE
 TMP
 TZ
 TimeZone
 VIRTUALfalse
+YYYY
 Za
 args
 aspell
@@ -89,6 +94,7 @@ getrevision
 gettitle
 ghostscript
 homebrew
+href
 inperson
 jlistwrap
 jq

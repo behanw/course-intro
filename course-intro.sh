@@ -12,55 +12,68 @@
 set -e
 set -u
 
-VERSION=1.6
+VERSION=1.7
 
 #===============================================================================
+# Global constants
 CMD="$(basename "$0")"
 CACHEDIR="$HOME/.cache/${CMD%.sh}"
 CONFIGDIR="$HOME/.config/${CMD%.sh}"
 CONF="$CONFIGDIR/settings.conf"
-CONFTEX="settings.tex"
+CONFTEX="$CONFIGDIR/settings.tex"
 MYPID="$$"
 
 #===============================================================================
-BITLY_LINK=
+# Global settings
 BITLY_TOKEN=
 CODEPDF="Code.pdf"
-COPY=
+CURL="curl -s"
+LFOPTS="--user LFtraining:Penguin2014 --location-trusted"
+LFCMURL="https://training.linuxfoundation.org/cm"
+DESKTOPDIR="$HOME/Desktop"
+LOCALCONF="intro.conf"
+METAFILE="meta.json"
+PDFNAME="course-intro"
+PDFVIEWER="evince"
+READYFOR="ready-for.sh"
+READYJSON="https://training.linuxfoundation.org/cm/prep/data/ready-for.json"
+ROSTER="../Class Roster.csv"
+TEMPLATE=
+
+#===============================================================================
+# Per class settings
+BITLY_LINK=
 COMPANY=
 COURSE=
-CURL="curl -s"
 DATE=
-DEBUG=
-DESKTOPDIR="$HOME/Desktop"
 EMAIL=
 EVAL=
-FILE=
 INPERSON=n
 INSTRUCTOR=
 KEY=
-LOCALCONF="intro.conf"
 LOCATION=
-METAFILE="meta.json"
-NOCACHE=
-NOUPDATE=
+MATERIALS=
 OPENENROL=n
-PDFNAME="course-intro"
-PDFVIEWER="evince"
-QUIET=
-READYFOR="ready-for.sh"
-READYJSON="https://training.linuxfoundation.org/cm/prep/data/ready-for.json"
 REVISION=
-ROSTER="../Class Roster.csv"
-SHOW=
-TEMPLATE=
-TEST=
 TIME=
 TITLE=
-UPDATE=
-VERBOSE=
 ZONE=
 
+#===============================================================================
+# Command line argument flags
+COPY=
+DEBUG=
+FILE=
+NOCACHE=
+NOUPDATE=
+QUIET=
+SHOW=
+TEST=
+UPDATE=
+VERBOSE=
+
+#===============================================================================
+# JSON Key names
 #JSON_GTR="Session GTR"
 #JSON_INSTR="Session Instructor"
 #JSON_PASSWORD="Session Zoom Password"
@@ -90,38 +103,6 @@ CYAN="\e[0;36m"
 BACK="\e[0m"
 
 ################################################################################
-metadata() {
-	info "Metadata for this course:"
-	info "  Instructor:'$INSTRUCTOR'"
-	info "  Email:     '$EMAIL'"
-	info "  Date:      '$DATE'"
-	info "  OpenEnrol: '$OPENENROL'"
-	info "  Company:   '$COMPANY'"
-	info "  InPerson:  '$INPERSON'"
-	info "  Location:  '$LOCATION'"
-	info "  Course:    '$COURSE'"
-	info "  Title:     '$TITLE'"
-	info "  Revision:  '$REVISION'"
-	info "  Time:      '$TIME'"
-	info "  TimeZone:  '$ZONE'"
-	info "  Key:       '$KEY'"
-	info "  Eval:      '$EVAL'"
-	info "  Bitly Link:'$BITLY_LINK'"
-
-	add_json "$METAFILE" "$JSON_DATE" "$DATE"
-	add_json "$METAFILE" "$JSON_COMPANY" "$COMPANY"
-	add_json "$METAFILE" "$JSON_LOC" "$LOCATION"
-	add_json "$METAFILE" "$JSON_CODE" "$COURSE"
-	add_json "$METAFILE" "$JSON_TITLE" "$TITLE"
-	add_json "$METAFILE" "$JSON_VERSION" "$REVISION"
-	add_json "$METAFILE" "$JSON_TIME" "$TIME"
-	add_json "$METAFILE" "$JSON_ZONE" "$ZONE"
-	add_json "$METAFILE" "$JSON_KEY" "$KEY"
-	add_json "$METAFILE" "$JSON_SURVEY" "$EVAL"
-	add_json "$METAFILE" "$JSON_BITLY" "$BITLY_LINK"
-}
-
-################################################################################
 debug() {
 	[[ -z $DEBUG ]] || echo -e "${CYAN}D:" "$@" "$BACK" >&2
 }
@@ -144,6 +125,40 @@ error() {
 }
 
 ################################################################################
+metadata() {
+	info "Metadata for this course:"
+	info "  Instructor:'$INSTRUCTOR'"
+	info "  Email:     '$EMAIL'"
+	info "  Date:      '$DATE'"
+	info "  OpenEnrol: '$OPENENROL'"
+	info "  Company:   '$COMPANY'"
+	info "  InPerson:  '$INPERSON'"
+	info "  Location:  '$LOCATION'"
+	info "  Course:    '$COURSE'"
+	info "  Title:     '$TITLE'"
+	info "  Revision:  '$REVISION'"
+	info "  Time:      '$TIME'"
+	info "  TimeZone:  '$ZONE'"
+	info "  Key:       '$KEY'"
+	info "  Eval:      '$EVAL'"
+	info "  Bitly Link:'$BITLY_LINK'"
+	info "  Materials: '$MATERIALS'"
+
+	add_json "$METAFILE" "$JSON_DATE" "$DATE"
+	add_json "$METAFILE" "$JSON_COMPANY" "$COMPANY"
+	add_json "$METAFILE" "$JSON_LOC" "$LOCATION"
+	add_json "$METAFILE" "$JSON_CODE" "$COURSE"
+	add_json "$METAFILE" "$JSON_TITLE" "$TITLE"
+	add_json "$METAFILE" "$JSON_VERSION" "$REVISION"
+	add_json "$METAFILE" "$JSON_TIME" "$TIME"
+	add_json "$METAFILE" "$JSON_ZONE" "$ZONE"
+	add_json "$METAFILE" "$JSON_KEY" "$KEY"
+	add_json "$METAFILE" "$JSON_SURVEY" "$EVAL"
+	add_json "$METAFILE" "$JSON_BITLY" "$BITLY_LINK"
+}
+
+################################################################################
+# Read data from a supplied JSON file
 DATECMD="$(command -v gdate)" || DATECMD="$(command -v date)" || error "No date found. Try installing gdate."
 read_json() {
 	local JSON=$1 NAME=$2 META=${3:-} DATA
@@ -160,6 +175,7 @@ read_json() {
 }
 
 ################################################################################
+# Add data to a JSON file
 add_json() {
 	local JSON=$1 NAME=$2 DATA=$3
 	local NEW="${JSON/.json/-tmp.json}"
@@ -179,6 +195,7 @@ add_json() {
 }
 
 ################################################################################
+# Store one entry from a CSV file as a JSON file
 save_json() {
 	local DIR=$1 CSV=$2 MDY=$3 NAME DATA
 	local META="$DIR/$METAFILE"
@@ -205,17 +222,19 @@ save_json() {
 }
 
 ################################################################################
+# Query data from ready-for.json
 query_json() {
 	local JSON="$CACHEDIR/${READYJSON##*/}" DATA
 	mkdir -p "$CACHEDIR"
 	if [[ -n $NOCACHE || ! -f $JSON ]] ; then
 		$CURL "$READYJSON" >"$JSON"
 	fi
-	DATA="$(jq --raw-output "$@" "$JSON")"
+	DATA="$(jq --raw-output "$@" "$JSON" 2>/dev/null || true)"
 	[[ $DATA == null ]] || echo "$DATA"
 }
 
 ################################################################################
+# Lookup or generate a bit.ly link
 getbitly() {
 	local URL=$1 API AUTH TYPE JSON
 	API='https://api-ssl.bitly.com/v4/shorten'
@@ -239,15 +258,24 @@ getbitly() {
 }
 
 ################################################################################
+# Get the course material files
 getcm() {
 	local FILES
+	debug "getcm"
 	FILES="$(read_json "$METAFILE" "$JSON_FILES")"
 	[[ -n $FILES ]] || FILES="$(query_json ".activities | .$COURSE | .materials | .[]")"
+	if [[ -z $FILES ]] ; then
+		FILES="$($CURL $LFOPTS "$LFCMURL/$COURSE/" \
+			| grep "${COURSE}_$REVISION" \
+			| sed 's/^.*href="//; s/".*$//')"
+	fi
 	[[ -z $FILES ]] || add_json "$METAFILE" "$JSON_FILES" "$FILES"
+	debug "getcm: $FILES"
 	echo "$FILES"
 }
 
 ################################################################################
+# Get the course number
 getcourse() {
 	local STR=$1 NAME
 
@@ -260,6 +288,7 @@ getcourse() {
 }
 
 ################################################################################
+# Get the course date
 getdate() {
 	local STR=$1
 
@@ -270,6 +299,7 @@ getdate() {
 }
 
 ################################################################################
+# Get the course evaluation survey URL
 getevaluation() {
 	local STR=$1 URL
 
@@ -282,6 +312,7 @@ getevaluation() {
 }
 
 ################################################################################
+# Get the course registration key code
 getkey() {
 	local STR=$1 CODE
 
@@ -294,6 +325,7 @@ getkey() {
 }
 
 ################################################################################
+# Get the course location as a city name, or Virtual
 getlocation() {
 	local LOC=$1
 	if [[ -n $LOC && -z $LOCATION ]] ; then
@@ -310,6 +342,7 @@ getlocation() {
 }
 
 ################################################################################
+# Get the company name or mark Open Enrolment (OE)
 getopenenrol() {
 	local CORP=$1
 	if [[ -n $CORP && -z $COMPANY ]] ; then
@@ -326,17 +359,22 @@ getopenenrol() {
 }
 
 ################################################################################
+# Get the version of the course materials
 getrevision() {
 	local STR=$1 REV
 
 	REV="$(sed -r 's/^.*(v[0-9.]+).*$/\1/' <<<"$STR")"
 	if [[ -n $REV && -z $REVISION ]] ; then
-		REVISION="$(sed -e 's/^v//I' -e 's/^/V/' <<<"$REV")"
+		REVISION="$REV"
 		debug "getrevision: '$REVISION'"
+	fi
+	if [[ -n $REVISION && ! $REVISION =~ ^V ]] ; then
+		REVISION="$(sed -e 's/^v//I' -e 's/^/V/' <<<"$REVISION")"
 	fi
 }
 
 ################################################################################
+# Get the course title
 gettitle() {
 	local STR=$1 
 
@@ -357,6 +395,7 @@ gettitle() {
 }
 
 ################################################################################
+# Check for updates of this script
 check_git_updates() {
 	debug "check_git_updates"
 	if [[ -z $NOUPDATE && -d $TEMPLATE/.git ]] ; then
@@ -376,6 +415,7 @@ check_git_updates() {
 }
 
 ################################################################################
+# Look up class metadata from local JSON cache file
 getdata_json() {
 	[[ -f "$METAFILE" ]] || return 0
 	debug "getdata_json: $METAFILE"
@@ -394,6 +434,7 @@ getdata_json() {
 }
 
 ################################################################################
+# Warn about invalid directory naming convention
 WARN_DIR_STRUCTURE=
 dir_warning() {
 	if [[ -n $WARN_DIR_STRUCTURE ]] ; then
@@ -402,6 +443,7 @@ dir_warning() {
 }
 
 ################################################################################
+# Look up class metadata from directory name
 getdata_dir() {
 	local NAME CORP LOC OTHER
 	NAME="$(basename "$(pwd)")"
@@ -436,6 +478,7 @@ getdata_dir() {
 }
 
 ################################################################################
+# Look up class metadata from local printed confirmation email as a PDF
 getdata_pdf() {
 	local FILE=$1 LINE
 	local FILE="${1:-$CODEPDF}" LINE
@@ -456,6 +499,7 @@ getdata_pdf() {
 }
 
 ################################################################################
+# Change the format of date from YYYY.MM.DD to MM/DD/YYYY for CSV lookup
 ymd_to_mdy() {
 	local YMD=$1 Y M D MDY
 	[[ -n $YMD ]] || error "No date found (use --date to fix)"
@@ -475,6 +519,7 @@ ymd_to_mdy() {
 }
 
 ################################################################################
+# Look up class metadata from weekly CSV file
 getdata_csv() {
 	local FILE="${1:-$ROSTER}" MDY
 	[[ $FILE =~ csv$ && -f $FILE ]] || return 0
@@ -496,13 +541,18 @@ getdata_csv() {
 }
 
 ################################################################################
+# Look up other class metadata
 getdata_other() {
 	debug "getdata_other"
+
 	[[ -n $BITLY_LINK ]] || BITLY_LINK="$(read_json "$METAFILE" "$JSON_BITLY")"
 	[[ -n $BITLY_LINK ]] || BITLY_LINK="$(getbitly "$EVAL")"
+
+	MATERIALS="$(getcm)"
 }
 
 ################################################################################
+# Generate the tex code for the metadata for this class
 maketex() {
 	debug "maketex"
 	#-----------------------------------------------------------------------
@@ -584,7 +634,7 @@ maketex() {
 
 	#-----------------------------------------------------------------------
 	local FILE
-	for FILE in $(getcm) ; do
+	for FILE in $MATERIALS ; do
 		#shellcheck disable=SC2028
 		FILE="$(sed -r -e "s/V[0-9.]+/$REVISION/;" -e 's/_/\\_/g' <<<"$FILE")"
 		#shellcheck disable=SC2028
@@ -596,6 +646,7 @@ maketex() {
 }
 
 ################################################################################
+# Build the PDF slide deck for this class
 makepdf() {
 	debug "makepdf"
 	if [[ -n $VERBOSE || -n $TEST ]] ; then
@@ -611,6 +662,7 @@ makepdf() {
 }
 
 ################################################################################
+# Copy the PDF slide deck for this class to the appropriate places
 copypdf() {
 	local PDF=$1 NEW=$2
 	debug "copypdf"
@@ -625,6 +677,7 @@ copypdf() {
 }
 
 ################################################################################
+# Optionally show the PDF slide deck
 showpdf() {
 	local PDF=$1
 	debug "showpdf"
@@ -636,6 +689,7 @@ showpdf() {
 }
 
 ################################################################################
+# Read global and local config files
 read_config() {
 	debug "read_config"
 	# Read config file
@@ -652,14 +706,16 @@ read_config() {
 
 	# Link tex config file
 	[[ -n $TEMPLATE ]] || error "No TEMPLATE specified in $CONF"
-	if [[ ! -e "$TEMPLATE/$CONFTEX" ]] ; then
-		warn "Creating $TEMPLATE/$CONFTEX"
-		rm -f "$TEMPLATE/$CONFTEX"
-		ln -s "$CONFIGDIR/$CONFTEX" "$TEMPLATE/$CONFTEX"
+	local TEMPTEX="$TEMPLATE/${CONFTEX##*/}"
+	if [[ ! -e "$TEMPTEX" ]] ; then
+		warn "Creating $TEMPTEX"
+		rm -f "$TEMPTEX"
+		ln -s "$CONFTEX" "$TEMPTEX"
 	fi
 }
 
 ################################################################################
+# Help text
 usage() {
 	if [[ $# -gt 0 ]] ; then
 		echo -e "${RED}E: Invalid argument:" "$@" "$BACK"
@@ -708,6 +764,23 @@ usage() {
 }
 
 ################################################################################
+# Parse early CLI arguments
+parse_early_args() {
+	while [[ $# -gt 0 ]] ; do
+		case "$1" in
+			-D|--debug) DEBUG=y;;
+			-q|--quiet) QUIET=y;;
+			-R|--trace) set -x ;;
+			-T|--test) TEST="echo";;
+			-v|--verbose) VERBOSE="-v";;
+			-h|--help) usage ;;
+		esac
+		shift
+	done
+}
+
+################################################################################
+# Parse CLI arguments
 parse_args() {
 	debug "parse_args"
 	while [[ $# -gt 0 ]] ; do
@@ -746,6 +819,7 @@ parse_args() {
 }
 
 ################################################################################
+parse_early_args "$@"
 read_config
 parse_args "$@"
 check_git_updates
@@ -754,7 +828,7 @@ getdata_dir
 getdata_pdf "$FILE"
 getdata_csv "$FILE"
 getdata_other
-[[ -n $QUIET ]] || metadata
+metadata
 
 ################################################################################
 TEXFILE="${TEXFILE:-$TEMPLATE/course.tex}"
