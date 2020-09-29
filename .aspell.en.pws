@@ -1,4 +1,4 @@
-personal_ws-1.1 en 134 
+personal_ws-1.1 en 137 
 AKEY
 AUTH
 BITLY
@@ -9,6 +9,7 @@ CMD
 CODEPDF
 CONF
 CONFIGDIR
+CONFTEX
 CORPfalse
 DATECMD
 DESKTOPDIR
@@ -59,6 +60,7 @@ cd
 chmod
 cmp
 conf
+config
 copypdf
 cou
 cp
@@ -77,6 +79,7 @@ getbitly
 getcm
 getcourse
 getdata
+getdate
 getevaluation
 getjson
 getkey
