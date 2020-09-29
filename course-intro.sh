@@ -27,7 +27,7 @@ BITLY_LINK=
 BITLY_TOKEN=
 CODEPDF="Code.pdf"
 COPY=
-COMPANY="OE"
+COMPANY=
 COURSE=
 CURL="curl -s"
 DATE=
@@ -40,7 +40,7 @@ INPERSON=n
 INSTRUCTOR=
 KEY=
 LOCALCONF="intro.conf"
-LOCATION="Virtual"
+LOCATION=
 METAFILE="meta.json"
 NOCACHE=
 NOUPDATE=
@@ -254,6 +254,7 @@ getcourse() {
 	NAME="$(sed -r 's/^.*(LF[A-Z][0-9]+).*$/\1/' <<<"$STR")"
 	if [[ -z $COURSE && -n $NAME ]] ; then
 		COURSE="$NAME"
+		debug "getcourse: '$COURSE'"
 		gettitle "$COURSE"
 	fi
 }
@@ -264,17 +265,19 @@ getdate() {
 
 	if [[ $STR =~ ^[0-9.]{8,10} && -z $DATE ]] ; then
 		DATE="$STR"
-		debug "  Detecting date as $DATE"
+		debug "getdate: '$DATE'"
 	fi
 }
 
 ################################################################################
 getevaluation() {
-	local STR=$1
+	local STR=$1 URL
 
-	EVAL="$(sed -r 's/^.*http/http/' <<<"$STR")"
-	if [[ -n $EVAL ]] ; then
-		[[ $EVAL =~ https?:// ]] || error "Invalid eval URL: '$EVAL'"
+	URL="$(sed -r 's/^.*http/http/' <<<"$STR")"
+	if [[ -n $URL && -z $EVAL ]] ; then
+		[[ $URL =~ https?:// ]] || error "Invalid eval URL: '$EVAL'"
+		EVAL="$URL"
+		debug "getevaluation: '$EVAL'"
 	fi
 }
 
@@ -283,17 +286,19 @@ getkey() {
 	local STR=$1 CODE
 
 	CODE="$(sed -r 's/^.*: *//' <<<"$STR")"
-	debug "getkey: $STR -> $CODE"
-	if [[ -n $CODE && $CODE =~ ^[0-9A-Za-z]+$ ]] ; then
+	if [[ -n $CODE && -z $KEY ]] ; then
+		[[ $CODE =~ ^[0-9A-Za-z]+$ ]] || error "Invalid course key: '$CODE'"
 		KEY="$CODE"
+		debug "getkey: '$KEY'"
 	fi
 }
 
 ################################################################################
 getlocation() {
-	LOC="$(read_json "$METAFILE" "$JSON_LOC")"
-	if [[ -n $LOC && $LOC != null ]] ; then
+	local LOC=$1
+	if [[ -n $LOC && -z $LOCATION ]] ; then
 		LOCATION="$LOC"
+		debug "getlocation: '$LOCATION'"
 		if [[ $LOC = "Virtual" ]] ; then
 			INPERSON=n
 			debug "  Detecting Virtual class"
@@ -307,8 +312,9 @@ getlocation() {
 ################################################################################
 getopenenrol() {
 	local CORP=$1
-	if [[ -n $CORP && $CORP != null ]] ; then
+	if [[ -n $CORP && -z $COMPANY ]] ; then
 		COMPANY="$CORP"
+		debug "getopenenrol: '$CORP'"
 		if [[ $CORP == "OE" ]] ; then
 			OPENENROL=y
 			debug "  Detecting Open Enrolment class"
@@ -326,7 +332,7 @@ getrevision() {
 	REV="$(sed -r 's/^.*(v[0-9.]+).*$/\1/' <<<"$STR")"
 	if [[ -n $REV && -z $REVISION ]] ; then
 		REVISION="$(sed -e 's/^v//I' -e 's/^/V/' <<<"$REV")"
-		debug "getrevision: REVISION=$REVISION"
+		debug "getrevision: '$REVISION'"
 	fi
 }
 
@@ -336,19 +342,23 @@ gettitle() {
 
 	if [[ -z $TITLE && -e $METAFILE ]] ; then
 		TITLE="$(read_json "$METAFILE" "$JSON_TITLE")"
+		debug "gettitle: from JSON: '$TITLE'"
 	fi
 	if [[ -z $TITLE ]] && command -v "$READYFOR" >/dev/null ; then
 		TITLE="$("$READYFOR" -l 2>/dev/null \
 			| grep "$STR" | sed -r -e "s/ *$STR - //")"
+		debug "gettitle: from $READYFOR: '$TITLE'"
 	fi
 	if [[ -z $TITLE ]] ; then
 		TITLE="$(query_json ".activities | .$COURSE | .title")"
+		debug "gettitle: from URL: '$TITLE'"
 	fi
 	add_json "$METAFILE" "$JSON_TITLE" "$TITLE"
 }
 
 ################################################################################
 check_git_updates() {
+	debug "check_git_updates"
 	if [[ -z $NOUPDATE && -d $TEMPLATE/.git ]] ; then
 		info "Checking for available updates"
 		(cd $TEMPLATE
@@ -368,6 +378,7 @@ check_git_updates() {
 ################################################################################
 getdata_json() {
 	[[ -f "$METAFILE" ]] || return 0
+	debug "getdata_json: $METAFILE"
 	info "Reading info from './$METAFILE'"
 
 	[[ -n $DATE ]] || getdate "$(read_json "$METAFILE" "$JSON_DATE" 'Date')"
@@ -394,11 +405,12 @@ dir_warning() {
 getdata_dir() {
 	local NAME CORP LOC OTHER
 	NAME="$(basename "$(pwd)")"
+	debug "getdata_dir: $NAME"
 	# shellcheck disable=SC2034
 	local NDATE NCOURSE CORP LOC OTHER <<<"$NAME"
 	IFS=- read -r NDATE NCOURSE CORP LOC OTHER <<<"$NAME"
 
-	debug "getdata: DATE:$DATE COURSE:$COURSE KEY:$KEY EVAL:$EVAL OTHER:$OTHER"
+	debug "  getdata_dir: DATE:$NDATE COURSE:$NCOURSE CORP:$CORP LOC:$LOC OTHER:$OTHER"
 
 	#-----------------------------------------------------------------------
 	if [[ -n $NCOURSE ]] ; then
@@ -427,6 +439,7 @@ getdata_dir() {
 getdata_pdf() {
 	local FILE=$1 LINE
 	local FILE="${1:-$CODEPDF}" LINE
+	debug "getdata_pdf: $FILE"
 	[[ $FILE =~ pdf$ && -f $FILE ]] || return 0
 	info "Reading info from './$FILE'"
 
@@ -465,6 +478,7 @@ ymd_to_mdy() {
 getdata_csv() {
 	local FILE="${1:-$ROSTER}" MDY
 	[[ $FILE =~ csv$ && -f $FILE ]] || return 0
+	debug "getdata_csv: $FILE"
 	info "Reading info from '$FILE'"
 
 	MDY="$(ymd_to_mdy "$DATE")"
@@ -483,12 +497,14 @@ getdata_csv() {
 
 ################################################################################
 getdata_other() {
+	debug "getdata_other"
 	[[ -n $BITLY_LINK ]] || BITLY_LINK="$(read_json "$METAFILE" "$JSON_BITLY")"
 	[[ -n $BITLY_LINK ]] || BITLY_LINK="$(getbitly "$EVAL")"
 }
 
 ################################################################################
 maketex() {
+	debug "maketex"
 	#-----------------------------------------------------------------------
 	if [[ -n $COURSE ]] ; then
 		#shellcheck disable=SC2028
@@ -581,6 +597,7 @@ maketex() {
 
 ################################################################################
 makepdf() {
+	debug "makepdf"
 	if [[ -n $VERBOSE || -n $TEST ]] ; then
 		$TEST make -C "$TEMPLATE" clean all
 	else
@@ -596,6 +613,7 @@ makepdf() {
 ################################################################################
 copypdf() {
 	local PDF=$1 NEW=$2
+	debug "copypdf"
 	$TEST cp $VERBOSE "$PDF" "$NEW"
 	if [[ -n $COPY && -n $DESKTOPDIR ]] ; then
 		if [[ -d $DESKTOPDIR ]] ; then
@@ -609,6 +627,7 @@ copypdf() {
 ################################################################################
 showpdf() {
 	local PDF=$1
+	debug "showpdf"
 	if [[ -n $TEST && -n $SHOW ]] ; then
 		echo $PDFVIEWER "$PDF"
 	elif [[ -n $SHOW ]] ; then
@@ -618,6 +637,7 @@ showpdf() {
 
 ################################################################################
 read_config() {
+	debug "read_config"
 	# Read config file
 	if [[ -e $CONF ]] ; then
 		info "Reading config from '$CONF'"
@@ -689,6 +709,7 @@ usage() {
 
 ################################################################################
 parse_args() {
+	debug "parse_args"
 	while [[ $# -gt 0 ]] ; do
 		case "$1" in
 			-c|--cou*) shift; getcourse "$1";;
@@ -736,19 +757,16 @@ getdata_other
 [[ -n $QUIET ]] || metadata
 
 ################################################################################
-if [[ -n $DEBUG ]] ; then
-	maketex
-else
-	TEXFILE="${TEXFILE:-$TEMPLATE/course.tex}"
-	rm -f "$TEXFILE"
-	maketex > "$TEXFILE"
+TEXFILE="${TEXFILE:-$TEMPLATE/course.tex}"
+rm -f "$TEXFILE"
+maketex > "$TEXFILE"
+[[ -z $DEBUG ]] || cat "$TEXFILE"
 
-	PDFFILE="${PDFFILE:-$TEMPLATE/$PDFNAME.pdf}"
-	makepdf "$PDFFILE"
+PDFFILE="${PDFFILE:-$TEMPLATE/$PDFNAME.pdf}"
+makepdf "$PDFFILE"
 
-	NEWFILE="$PDFNAME-$DATE-$COURSE-$REVISION-$COMPANY-$LOCATION.pdf"
-	copypdf "$PDFFILE" "$NEWFILE"
+NEWFILE="$PDFNAME-$DATE-$COURSE-$REVISION-$COMPANY-$LOCATION.pdf"
+copypdf "$PDFFILE" "$NEWFILE"
 
-	info "Created $NEWFILE"
-	showpdf "$NEWFILE"
-fi
+info "Created $NEWFILE"
+showpdf "$NEWFILE"
