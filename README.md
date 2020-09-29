@@ -4,7 +4,7 @@
 
 You can install this tool as follows:
 
- 1. apt install curl ghostscript jq make miller pdfgrep sed texlive
+ 1. sudo apt install curl ghostscript jq make miller pdfgrep sed texlive
  2. cd to/some/directory
  3. git clone https://github.com/behanw/course-intro.git
  4. cd course-intro
@@ -84,6 +84,12 @@ For instance:
 If you print the email of the course confirmation from the course coordinator
 to a file called *Code.pdf*, the script can use pdfgrep to extract information
 from this file (if the email is formatted the way it was when this was written).
+The lines from the file which will be parsed:
+
+    Subject: LFD435 Acme Corp Month Day, Year - Training info
+    Version: v5.5
+    Reg #: acmecoursekey
+    Surveymonkey: https://www.surveymonkey.com/r/CODE?course=LFD435_Date
 
 ### *Class Roster.csv*
 
@@ -96,7 +102,7 @@ However this file won't show past classes. As a result, it will automatically
 extract the metadata for this class and store it as meta.json file in each class
 directory.
 
-### meta.json
+### *meta.json*
 
 This file contains the metadata for the class in this directory. It is created
 by the script to cache information about the class from the *Class Roster.csv*
@@ -111,14 +117,14 @@ and whether the class has a SOLUTIONS file, RESOURCES file, or both.
 
     https://training.linuxfoundation.org/cm/prep/data/ready-for.json
 
-### intro.conf
+### *intro.conf*
 
 Sometimes one can't effectively guess information nor rely on default configuration
 to get class specifics. As a result you can use this configuration file to override
 any of the automatically detected values. All of these settings are optional, and
 override all values described above.
 
-    NAME="My Name (nickname)"
+    INSTRUCTOR="My Name (nickname)"
     EMAIL="My@email.address"
     DATE="YYYY-MM-DD"
     TIME="9am-5pm"
@@ -139,22 +145,30 @@ Using the command-line will allow you to override all values specified in files
 above this section.
 
     Usage: course-intro.sh [options]
-        -c --course <course>              LFD/LFS course code/number
-        -d --date <YYYY.MM.DD>            Year.Month.Day of class
-        -e --evaluation <evaluation url>  The evaluation survey URL
-        -f --file <file>                  The file from which to read metadata
-        -i --inperson                     An in-person class (default Virtual)
-        -k --key <key>                    Registration code for OE class
-        -m --mail <email>                 Instructor email
-        -n --name <name>                  Instructor name
-        -o --oe-course                    An Open Enrolment course (default Corporate)
-        -r --revision <revision>          Version number of the course (e.g. V5.10)
-        -s --time <start-end times>       Daily start and end time of the class
-        -t --title "<title>"              Title of the course
-        -z --timezone <TZ>                Time zone of for the daily class times
-        -C --copy                         Copy the resulting PDF to $DESKTOPDIR
-        -S --show                         View PDF with evince
-        -V --version                      Show version of the script
+        -c --course <course>         LFD/LFS course code/number
+        -d --date <YYYY.MM.DD>       Year.Month.Day of class
+        -e --evaluation <eval url>   The evaluation survey URL
+        -f --file <file>             The file from which to read metadata
+        -i --inperson <City>         An in-person class (default Virtual)
+        -I --virtual                 A virtual class
+        -k --key <key>               Registration code for OE class
+        -m --mail <email>            Instructor email
+        -n --name "<name>"           Instructor name
+        -o --oecourse                An Open Enrolment course (default Corporate)
+        -O --corporate <Company>     An Corporate course at Company
+        -r --revision <revision>     Version number of the course (e.g. V5.10)
+        -s --time <start-end times>  Daily start and end time of the class
+        -t --title "<title>"         Title of the course
+        -z --timezone <TZ>           Time zone of for the daily class times
+        -N --nocache                 Don't use cached versions of files
+        -U --noupdate                Don't check for course-intro updates
+        -h --help                    This help
+        -C --copy                    Copy the resulting PDF to /home/behanw/Host/Desktop
+        -q --quiet                   Turn off most output
+        -S --show                    View PDF with evince
+        -u --update                  Update course-intro
+        -v --verbose                 Show latex build output
+        -V --version                 Show version of the script
 
 ## Example of running the script
 
