@@ -1,4 +1,4 @@
-personal_ws-1.1 en 144 
+personal_ws-1.1 en 147 
 AKEY
 AUTH
 BITLY
@@ -93,6 +93,7 @@ getopenenrol
 getrevision
 gettitle
 ghostscript
+gtr
 homebrew
 href
 inperson
@@ -122,6 +123,7 @@ myversion
 nSee
 nocache
 nohup
+notgtr
 noupdate
 oe
 oecourse
@@ -132,6 +134,7 @@ printdata
 pv
 pwd
 renewcommand
+savedata
 sed
 shellcheck
 showpdf

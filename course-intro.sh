@@ -12,7 +12,7 @@
 set -e
 set -u
 
-VERSION=1.7
+VERSION=1.8
 
 #===============================================================================
 # Global constants
@@ -28,9 +28,9 @@ MYPID="$$"
 BITLY_TOKEN=
 CODEPDF="Code.pdf"
 CURL="curl -s"
-LFOPTS="--user LFtraining:Penguin2014 --location-trusted"
-LFCMURL="https://training.linuxfoundation.org/cm"
 DESKTOPDIR="$HOME/Desktop"
+LFCMURL="https://training.linuxfoundation.org/cm"
+LFOPTS="--user LFtraining:Penguin2014 --location-trusted"
 LOCALCONF="intro.conf"
 METAFILE="meta.json"
 PDFNAME="course-intro"
@@ -48,6 +48,7 @@ COURSE=
 DATE=
 EMAIL=
 EVAL=
+GTR=
 INPERSON=n
 INSTRUCTOR=
 KEY=
@@ -74,7 +75,6 @@ VERBOSE=
 
 #===============================================================================
 # JSON Key names
-#JSON_GTR="Session GTR"
 #JSON_INSTR="Session Instructor"
 #JSON_PASSWORD="Session Zoom Password"
 #JSON_SKU="Session SKU"
@@ -86,6 +86,7 @@ JSON_COMPANY="Company"
 JSON_DATE="Session Start Date"
 JSON_DAYS="Course Days"
 JSON_FILES="Course Materials"
+JSON_GTR="Session GTR"
 JSON_KEY="Session Class Key"
 JSON_LOC="Session Location"
 JSON_STUDENTS="# of Learners"
@@ -138,41 +139,38 @@ metadata() {
 	info "  Course:    '$COURSE'"
 	info "  Title:     '$TITLE'"
 	info "  Revision:  '$REVISION'"
+	info "  GTR:       '$GTR'"
 	info "  Time:      '$TIME'"
 	info "  TimeZone:  '$ZONE'"
 	info "  Key:       '$KEY'"
 	info "  Eval:      '$EVAL'"
 	info "  Bitly Link:'$BITLY_LINK'"
 	info "  Materials: '$MATERIALS'"
-
-	add_json "$METAFILE" "$JSON_DATE" "$DATE"
-	add_json "$METAFILE" "$JSON_COMPANY" "$COMPANY"
-	add_json "$METAFILE" "$JSON_LOC" "$LOCATION"
-	add_json "$METAFILE" "$JSON_CODE" "$COURSE"
-	add_json "$METAFILE" "$JSON_TITLE" "$TITLE"
-	add_json "$METAFILE" "$JSON_VERSION" "$REVISION"
-	add_json "$METAFILE" "$JSON_TIME" "$TIME"
-	add_json "$METAFILE" "$JSON_ZONE" "$ZONE"
-	add_json "$METAFILE" "$JSON_KEY" "$KEY"
-	add_json "$METAFILE" "$JSON_SURVEY" "$EVAL"
-	add_json "$METAFILE" "$JSON_BITLY" "$BITLY_LINK"
 }
 
 ################################################################################
 # Read data from a supplied JSON file
 DATECMD="$(command -v gdate)" || DATECMD="$(command -v date)" || error "No date found. Try installing gdate."
-read_json() {
-	local JSON=$1 NAME=$2 META=${3:-} DATA
+get_json() {
+	local JSON=$1 NAME=$2 OPTION=${3:-} DATA
 
 	[[ -n $JSON && -e $JSON ]] || error "Read JSON: $JSON not found"
 
 	DATA="$(jq --raw-output ".\"$NAME\"" "$JSON" | sed -e 's/\\n/\n/g')"
 
-	case "$META" in
+	case "$OPTION" in
 		Date) [[ ! $DATA =~ / ]] || DATA="$($DATECMD -d "$DATA" "+%Y.%m.%d")";;
 	esac
 
 	[[ $DATA == null ]] || echo "$DATA"
+}
+
+################################################################################
+# Read entry from local JSON file
+read_json() {
+	local NAME=$1 OPTION=${2:-}
+
+	get_json "$METAFILE" "$NAME" "$OPTION"
 }
 
 ################################################################################
@@ -196,8 +194,17 @@ add_json() {
 }
 
 ################################################################################
-# Store one entry from a CSV file as a JSON file
+# Store entry in local JSON file
 save_json() {
+	local NAME=$1 DATA=${2:-}
+
+	[[ -n $DATA ]] || return 0
+	add_json "$METAFILE" "$NAME" "$DATA"
+}
+
+################################################################################
+# Store one entry from a CSV file as a JSON file
+csv_to_json() {
 	local DIR=$1 CSV=$2 MDY=$3 NAME DATA
 	local META="$DIR/$METAFILE"
 	local NEW="$DIR/${METAFILE/.json/-new.json}"
@@ -208,8 +215,8 @@ save_json() {
 	if [[ ! -s $NEW ]] ; then
 		rm -f "$NEW"
 	elif [[ -e $META ]] ; then
-		for NAME in "$JSON_COMPANY" "$JSON_DAYS" "$JSON_LOC" "$JSON_STUDENTS" ; do
-			DATA="$(read_json "$META" "$NAME")"
+		for NAME in "$JSON_COMPANY" "$JSON_DAYS" "$JSON_GTR" "$JSON_LOC" "$JSON_STUDENTS" ; do
+			DATA="$(get_json "$META" "$NAME")"
 			add_json "$NEW" "$NAME" "$DATA"
 		done
 		if cmp --quiet "$META" "$NEW" ; then
@@ -224,7 +231,7 @@ save_json() {
 
 ################################################################################
 # Query data from ready-for.json
-query_json() {
+query_ready_json() {
 	local JSON="$CACHEDIR/${READYJSON##*/}" DATA
 	mkdir -p "$CACHEDIR"
 	if [[ -n $NOCACHE || ! -f $JSON ]] ; then
@@ -261,18 +268,20 @@ getbitly() {
 ################################################################################
 # Get the course material files
 getcm() {
-	local FILES
+	local FILES=
 	debug "getcm"
-	FILES="$(read_json "$METAFILE" "$JSON_FILES")"
-	[[ -n $FILES ]] || FILES="$(query_json ".activities | .$COURSE | .materials | .[]")"
-	if [[ -z $FILES ]] ; then
+	FILES="$(read_json "$JSON_FILES" | tr '\n' ' ')"
+	[[ -n ${FILES% } ]] || FILES="$(query_ready_json ".activities | .$COURSE | .materials | .[]" | tr '\n' ' ')"
+	if [[ -z ${FILES% } ]] ; then
 		# shellcheck disable=SC2086
 		FILES="$($CURL $LFOPTS "$LFCMURL/$COURSE/" \
 			| grep "${COURSE}_$REVISION" \
-			| sed 's/^.*href="//; s/".*$//')"
+			| sed 's/^.*href="//; s/".*$//' \
+			| tr '\n' ' ')"
 	fi
-	[[ -z $FILES ]] || add_json "$METAFILE" "$JSON_FILES" "$FILES"
-	debug "getcm: $FILES"
+	FILES="${FILES% }"
+	[[ -z $FILES ]] || save_json "$JSON_FILES" "$FILES"
+	info "getcm: $FILES"
 	echo "$FILES"
 }
 
@@ -294,7 +303,7 @@ getcourse() {
 getdate() {
 	local STR=$1
 
-	if [[ $STR =~ ^[0-9.]{8,10} && -z $DATE ]] ; then
+	if [[ -z $DATE && $STR =~ ^[0-9.]{8,10} ]] ; then
 		DATE="$STR"
 		debug "getdate: '$DATE'"
 	fi
@@ -306,7 +315,7 @@ getevaluation() {
 	local STR=$1 URL
 
 	URL="$(sed -r 's/^.*http/http/' <<<"$STR")"
-	if [[ -n $URL && -z $EVAL ]] ; then
+	if [[ -z $EVAL && -n $URL ]] ; then
 		[[ $URL =~ https?:// ]] || error "Invalid eval URL: '$EVAL'"
 		EVAL="$URL"
 		debug "getevaluation: '$EVAL'"
@@ -319,7 +328,7 @@ getkey() {
 	local STR=$1 CODE
 
 	CODE="$(sed -r 's/^.*: *//' <<<"$STR")"
-	if [[ -n $CODE && -z $KEY ]] ; then
+	if [[ -z $KEY && -n $CODE ]] ; then
 		[[ $CODE =~ ^[0-9A-Za-z]+$ ]] || error "Invalid course key: '$CODE'"
 		KEY="$CODE"
 		debug "getkey: '$KEY'"
@@ -366,7 +375,7 @@ getrevision() {
 	local STR=$1 REV
 
 	REV="$(sed -r 's/^.*(v[0-9.]+).*$/\1/' <<<"$STR")"
-	if [[ -n $REV && -z $REVISION ]] ; then
+	if [[ -z $REVISION && -n $REV ]] ; then
 		REVISION="$REV"
 		debug "getrevision: '$REVISION'"
 	fi
@@ -381,7 +390,7 @@ gettitle() {
 	local STR=$1 
 
 	if [[ -z $TITLE && -e $METAFILE ]] ; then
-		TITLE="$(read_json "$METAFILE" "$JSON_TITLE")"
+		TITLE="$(read_json "$JSON_TITLE")"
 		debug "gettitle: from JSON: '$TITLE'"
 	fi
 	if [[ -z $TITLE ]] && command -v "$READYFOR" >/dev/null ; then
@@ -390,10 +399,10 @@ gettitle() {
 		debug "gettitle: from $READYFOR: '$TITLE'"
 	fi
 	if [[ -z $TITLE ]] ; then
-		TITLE="$(query_json ".activities | .$COURSE | .title")"
+		TITLE="$(query_ready_json ".activities | .$COURSE | .title")"
 		debug "gettitle: from URL: '$TITLE'"
 	fi
-	add_json "$METAFILE" "$JSON_TITLE" "$TITLE"
+	save_json "$JSON_TITLE" "$TITLE"
 }
 
 ################################################################################
@@ -417,22 +426,45 @@ check_git_updates() {
 }
 
 ################################################################################
+# Save class metadata to local JSON cache file
+savedata_json() {
+	[[ -f "$METAFILE" ]] || return 0
+	debug "savedata_json: $METAFILE"
+	info "Saving info to './$METAFILE'"
+
+	save_json "$JSON_DATE" "$DATE"
+	save_json "$JSON_COMPANY" "$COMPANY"
+	save_json "$JSON_LOC" "$LOCATION"
+	save_json "$JSON_CODE" "$COURSE"
+	save_json "$JSON_TITLE" "$TITLE"
+	save_json "$JSON_VERSION" "$REVISION"
+	save_json "$JSON_TIME" "$TIME"
+	save_json "$JSON_ZONE" "$ZONE"
+	save_json "$JSON_KEY" "$KEY"
+	save_json "$JSON_SURVEY" "$EVAL"
+
+	[[ -z $GTR ]] || save_json "$JSON_GTR" 'true'
+	[[ -z $BITLY_LINK ]] || save_json "$JSON_BITLY" "$BITLY_LINK"
+}
+
+################################################################################
 # Look up class metadata from local JSON cache file
 getdata_json() {
 	[[ -f "$METAFILE" ]] || return 0
 	debug "getdata_json: $METAFILE"
 	info "Reading info from './$METAFILE'"
 
-	[[ -n $DATE ]] || getdate "$(read_json "$METAFILE" "$JSON_DATE" 'Date')"
-	[[ -n $COURSE ]] || getcourse "$(read_json "$METAFILE" "$JSON_CODE")"
-	[[ -n $REVISION ]] || getrevision "$(read_json "$METAFILE" "$JSON_VERSION")"
-	[[ -n $TIME ]] || TIME="$(read_json "$METAFILE" "$JSON_TIME")"
-	[[ -n $ZONE ]] || ZONE="$(read_json "$METAFILE" "$JSON_ZONE")"
-	[[ -n $KEY ]] || getkey "$(read_json "$METAFILE" "$JSON_KEY")"
-	[[ -n $EVAL ]] || getevaluation "$(read_json "$METAFILE" "$JSON_SURVEY")"
+	getdate "$(read_json "$JSON_DATE" 'Date')"
+	getcourse "$(read_json "$JSON_CODE")"
+	getrevision "$(read_json "$JSON_VERSION")"
+	[[ -n $GTR ]] || GTR="$(read_json "$JSON_GTR")"
+	[[ -n $TIME ]] || TIME="$(read_json "$JSON_TIME")"
+	[[ -n $ZONE ]] || ZONE="$(read_json "$JSON_ZONE")"
+	getkey "$(read_json "$JSON_KEY")"
+	getevaluation "$(read_json "$JSON_SURVEY")"
 
-	getopenenrol "$(read_json "$METAFILE" "$JSON_COMPANY")"
-	getlocation "$(read_json "$METAFILE" "$JSON_LOC")"
+	getopenenrol "$(read_json "$JSON_COMPANY")"
+	getlocation "$(read_json "$JSON_LOC")"
 }
 
 ################################################################################
@@ -480,58 +512,6 @@ getdata_dir() {
 }
 
 ################################################################################
-# Try to find useful information in random lines of text in the input PDF
-makeguess() {
-	local LINE="$1" MDY="$2" STUDENTS DELIVERY NOD
-
-	DELIVERY="$(cut -c149-167 <<<"$LINE" | sed -e 's/ //g; s/0016/2020/')"
-	#DELIVERY="${LINE:151,23}"
-	if [[ -n $DELIVERY && $DELIVERY == "$MDY" ]] ; then
-		info "  $COURSE is delivered on '$DELIVERY'"
-	else
-		return 0
-	fi
-
-	STUDENTS="$(cut -c127-147 <<<"$LINE" | sed -re 's/^ *//; s/([0-9]+).*$/\1/')"
-	#STUDENTS="$(sed -re 's/^([0-9]+).*$/\1/' <<<"${LINE:129,21}")"
-	if [[ -n $STUDENTS && $STUDENTS =~ [0-9] ]] ; then
-		debug "  $COURSE has '$STUDENTS' students"
-		add_json "$METAFILE" "$JSON_STUDENTS" "$STUDENTS"
-	fi
-
-	NOD="$(cut -c169-182 <<<"$LINE" | sed -e 's/ //g')"
-	#NOD="${LINE:175,16}"
-	if [[ -n $NOD && $NOD =~ [0-9] ]] ; then
-		debug "  $COURSE is '$NOD' days long"
-		add_json "$METAFILE" "$JSON_DAYS" "$NOD"
-	fi
-
-	debug "makeguess: STUDENTS:$STUDENTS DELIVERY:$DELIVERY NOD:$NOD"
-}
-
-################################################################################
-# Look up class metadata from local printed confirmation email as a PDF
-getdata_pdf() {
-	local FILE="${1:-$CODEPDF}" LINE MDY
-	debug "getdata_pdf: $FILE"
-	[[ $FILE =~ pdf$ && -f $FILE ]] || return 0
-	info "Reading info from './$FILE'"
-	MDY="$(ymd_to_mdy "$DATE")"
-
-	while IFS='' read -r LINE ; do
-		case "$LINE" in
-			*Subject:*LF*) getcourse "$LINE";;
-			*Book:*v[0-9]*) getrevision "$LINE";;
-			*Version:*v[0-9]*) getrevision "$LINE";;
-			*Reg*:*) getkey "$LINE";;
-			*Survey*:*) getevaluation "$LINE";;
-			*Evaluation:*) getevaluation "$LINE";;
-			*) makeguess "$LINE" "$MDY";;
-		esac
-	done <<<"$(pdfgrep . "$FILE")"
-}
-
-################################################################################
 # Change the format of date from YYYY.MM.DD to MM/DD/YYYY for CSV lookup
 ymd_to_mdy() {
 	local YMD=$1 Y M D MDY
@@ -552,25 +532,78 @@ ymd_to_mdy() {
 }
 
 ################################################################################
+# Try to find useful information in random lines of text in the input PDF
+makeguess() {
+	local LINE="$1" MDY="$2" STUDENTS DELIVERY NOD
+
+	DELIVERY="$(cut -c149-167 <<<"$LINE" | sed -e 's/ //g; s/0016/2020/')"
+	#DELIVERY="${LINE:151,23}"
+	if [[ -n $DELIVERY && $DELIVERY == "$MDY" ]] ; then
+		debug "  $COURSE is delivered on '$DELIVERY'"
+	else
+		return 0
+	fi
+
+	STUDENTS="$(cut -c127-147 <<<"$LINE" | sed -re 's/^ *//; s/([0-9]+).*$/\1/')"
+	#STUDENTS="$(sed -re 's/^([0-9]+).*$/\1/' <<<"${LINE:129,21}")"
+	if [[ -n $STUDENTS && $STUDENTS =~ [0-9] ]] ; then
+		debug "  $COURSE has '$STUDENTS' students"
+		save_json "$JSON_STUDENTS" "$STUDENTS"
+	fi
+
+	NOD="$(cut -c169-182 <<<"$LINE" | sed -e 's/ //g')"
+	#NOD="${LINE:175,16}"
+	if [[ -n $NOD && $NOD =~ [0-9] ]] ; then
+		debug "  $COURSE is '$NOD' days long"
+		save_json "$JSON_DAYS" "$NOD"
+	fi
+
+	debug "makeguess: STUDENTS:$STUDENTS DELIVERY:$DELIVERY NOD:$NOD"
+}
+
+################################################################################
+# Look up class metadata from local printed confirmation email as a PDF
+getdata_pdf() {
+	local FILE="${1:-$CODEPDF}" LINE MDY
+	debug "getdata_pdf: $FILE"
+	[[ $FILE =~ pdf$ && -f $FILE ]] || FILE="$CODEPDF"
+	[[ -f $FILE ]] || return 0
+	info "Reading info from './$FILE'"
+	MDY="$(ymd_to_mdy "$DATE")"
+
+	while IFS='' read -r LINE ; do
+		case "$LINE" in
+			*Subject:*LF*) getcourse "$LINE";;
+			*Book:*v[0-9]*) getrevision "$LINE";;
+			*Version:*v[0-9]*) getrevision "$LINE";;
+			*Reg*:*) getkey "$LINE";;
+			*Survey*:*) getevaluation "$LINE";;
+			*Evaluation:*) getevaluation "$LINE";;
+			*) makeguess "$LINE" "$MDY";;
+		esac
+	done <<<"$(pdfgrep . "$FILE")"
+}
+
+################################################################################
 # Look up class metadata from weekly CSV file
 getdata_csv() {
 	local FILE="${1:-$ROSTER}" MDY
-	[[ $FILE =~ csv$ && -f $FILE ]] || return 0
 	debug "getdata_csv: $FILE"
+	[[ $FILE =~ csv$ && -f $FILE ]] || FILE="$ROSTER"
+	[[ -f $FILE ]] || return 0
 	info "Reading info from '$FILE'"
 
 	MDY="$(ymd_to_mdy "$DATE")"
-
-	save_json "$(pwd)" "$FILE" "$MDY"
+	csv_to_json "$(pwd)" "$FILE" "$MDY"
 
 	local D R K E
 	IFS=, read -r D R K E <<<"$(mlr --csv cut -f \
 		"\"$JSON_DATE\",\"$JSON_VERSION\",\"$JSON_KEY\",\"$JSON_SURVEY\"" \
 		<<<"$(tr -d '"' <"$FILE")" | grep "^$MDY")"
 
-	[[ -n $REVISION ]] || getrevision "$R"
-	[[ -n $KEY ]] || getkey "$K"
-	[[ -n $EVAL ]] || getevaluation "$E"
+	getrevision "$R"
+	getkey "$K"
+	getevaluation "$E"
 }
 
 ################################################################################
@@ -578,7 +611,7 @@ getdata_csv() {
 getdata_other() {
 	debug "getdata_other"
 
-	[[ -n $BITLY_LINK ]] || BITLY_LINK="$(read_json "$METAFILE" "$JSON_BITLY")"
+	[[ -n $BITLY_LINK ]] || BITLY_LINK="$(read_json "$JSON_BITLY")"
 	[[ -n $BITLY_LINK ]] || BITLY_LINK="$(getbitly "$EVAL")"
 
 	MATERIALS="$(getcm)"
@@ -649,20 +682,20 @@ maketex() {
 
 	#-----------------------------------------------------------------------
 	if [[ $OPENENROL == y ]] ; then
-		info "Building Open Enrolment $COURSE"
+		info "Building Open Enrolment class"
 		#shellcheck disable=SC2028
 		echo '\CORPfalse{}'
 	else
-		warn "Building Corporate $COURSE (Add --oe to change)"
+		warn "Building Corporate class ${CORP:+for $CORP} (Use --oe to change)"
 	fi
 
 	#-----------------------------------------------------------------------
 	if [[ $INPERSON == y ]] ; then
-		info "Building In-person $COURSE"
+		info "Building In-person class {$LOCATION:+in $LOCATION"
 		#shellcheck disable=SC2028
 		echo '\VIRTUALfalse{}'
 	else
-		warn "Building Virtual $COURSE (add --inperson to change)"
+		warn "Building Virtual class (Use --inperson to change)"
 	fi
 
 	#-----------------------------------------------------------------------
@@ -785,13 +818,13 @@ usage() {
 	    -V --version                 Show version of the script
 
 	  $CMD will try to read metadata from the following sources:
-	    1. The directory name Date-Code-Customer-Location
-	    2. From text parsed from $CODEPDF
-	    3. From $ROSTER
-	    4. From $METAFILE
-	    5. From $READYJSON
-	    6. From $LOCALCONF (overrides all previous metadata)
-	    7. From command line arguments as listed above (overrides previous)
+	    1. From command line arguments
+	    2. From $LOCALCONF (overrides all previous metadata)
+	    3. From $METAFILE
+	    4. The directory name Date-Code-Customer-Location
+	    5. From text parsed from $CODEPDF
+	    6. From $ROSTER
+	    7. From $READYJSON
 	HELP
 	exit 1
 }
@@ -824,6 +857,8 @@ parse_args() {
 			-D|--debug) DEBUG=y;;
 			-e|--eval*) shift; getevaluation "$1";;
 			-f|--file*) shift; FILE="$1";;
+			-g|--gtr) GTR=true;;
+			-G|--notgtr) GTR=false;;
 			-i|--in*) shift; getlocation "$1";;
 			-I|--virtual) getlocation "Virtual";;
 			-k|--key*) shift; getkey "$1";;
@@ -862,6 +897,7 @@ getdata_pdf "$FILE"
 getdata_csv "$FILE"
 getdata_other
 metadata
+savedata_json
 
 ################################################################################
 TEXFILE="${TEXFILE:-$TEMPLATE/course.tex}"
