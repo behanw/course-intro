@@ -12,7 +12,7 @@
 set -e
 set -u
 
-VERSION=1.8
+VERSION=1.8.1
 
 #===============================================================================
 # Global constants
@@ -211,9 +211,10 @@ csv_to_json() {
 
 	mlr --c2j --jlistwrap cat <<<"$(tr -d '"' <"$CSV")" \
 		| jq ".[] | select(.\"$JSON_DATE\" | contains(\"$MDY\"))" \
+		| sed -e 's/"false",/false,/' -e 's/"0",/0,/' -e 's/"v/"V/' \
 		>"$NEW"
 	if [[ ! -s $NEW ]] ; then
-		rm -f "$NEW"
+		debug rm -f "$NEW"
 	elif [[ -e $META ]] ; then
 		for NAME in "$JSON_COMPANY" "$JSON_DAYS" "$JSON_GTR" "$JSON_LOC" "$JSON_STUDENTS" ; do
 			DATA="$(get_json "$META" "$NAME")"
@@ -376,7 +377,7 @@ getrevision() {
 
 	REV="$(sed -r 's/^.*(v[0-9.]+).*$/\1/' <<<"$STR")"
 	if [[ -z $REVISION && -n $REV ]] ; then
-		REVISION="$REV"
+		REVISION="${REV% *}"
 		debug "getrevision: '$REVISION'"
 	fi
 	if [[ -n $REVISION && ! $REVISION =~ ^V ]] ; then
