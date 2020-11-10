@@ -782,6 +782,20 @@ read_config() {
 }
 
 ################################################################################
+copy_intro_conf() {
+	local DIR=${1:-.}
+	local INTRO="$DIR/$LOCALCONF" EXAMPLE="$CONFIGDIR/example-$LOCALCONF"
+	debug "copy_intro_conf: EXAMPLE=$EXAMPLE DIR=$DIR INTRO=$INTRO"
+	if [[ -f $INTRO ]] ; then
+		error "$INTRO already exists"
+	elif [[ -f $EXAMPLE ]] ; then
+		$TEST cp -v "$EXAMPLE" "$INTRO"
+	else
+		error "No $EXAMPLE found"
+	fi
+}
+
+################################################################################
 # Help text
 usage() {
 	if [[ $# -gt 0 ]] ; then
@@ -795,6 +809,7 @@ usage() {
 	    -e --evaluation <eval url>   The evaluation survey URL
 	    -f --file <file>             The file from which to read metadata
 	    -i --inperson <City>         An in-person class (default Virtual)
+	    --intro-conf                 Create intro.conf from template
 	    -I --virtual                 A virtual class
 	    -k --key <key>               Registration code for OE class
 	    -m --mail <email>            Instructor email
@@ -860,6 +875,7 @@ parse_args() {
 			-f|--file*) shift; FILE="$1";;
 			-g|--gtr) GTR=true;;
 			-G|--notgtr) GTR=false;;
+			--intro) copy_intro_conf "${2:-.}"; exit 0;;
 			-i|--in*) shift; getlocation "$1";;
 			-I|--virtual) getlocation "Virtual";;
 			-k|--key*) shift; getkey "$1";;
