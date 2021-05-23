@@ -1,10 +1,11 @@
-personal_ws-1.1 en 147 
+personal_ws-1.1 en 163 
 AKEY
 AUTH
 BITLY
 BITLYfalse
 Bitly
 CACHEDIR
+CDSW
 CLI
 CMD
 CODEPDF
@@ -14,9 +15,11 @@ CONFTEX
 CORPfalse
 DATECMD
 DESKTOPDIR
+DOCDIR
 DONTUPDATE
 EVAL
 Enrolment
+GDRIVE
 GPL
 GTR
 INPERSON
@@ -45,8 +48,10 @@ OpenEnrol
 PDFFILE
 PDFNAME
 PDFVIEWER
+RCLONE
 READYFOR
 READYJSON
+RPID
 SKU
 STR
 TEMPTEX
@@ -73,6 +78,7 @@ csv
 dev
 dir
 elif
+env
 esac
 eval
 evals
@@ -90,8 +96,12 @@ getjson
 getkey
 getlocation
 getopenenrol
+getrclonefiles
 getrevision
+getstatus
+gettime
 gettitle
+getzone
 ghostscript
 gtr
 homebrew
@@ -133,7 +143,11 @@ printcm
 printdata
 pv
 pwd
+rclone
+rclonefile
+rclonefiles
 renewcommand
+rsync
 savedata
 sed
 shellcheck
@@ -144,5 +158,7 @@ texttt
 tz
 uno
 url
+usr
+vP
 vX
 ymd

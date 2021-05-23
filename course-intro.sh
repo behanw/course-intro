@@ -1,5 +1,5 @@
-#!/bin/bash
-# Copyright (c) 2020 Behan Webster <behanw@converseincode.com>
+#!/usr/bin/env bash
+# Copyright (c) 2020-2021 Behan Webster <behanw@converseincode.com>
 # License: GPL
 #
 # The following packages need installing:
@@ -12,7 +12,7 @@
 set -e
 set -u
 
-VERSION=1.8.1
+VERSION=1.9
 
 #===============================================================================
 # Global constants
@@ -48,6 +48,7 @@ COURSE=
 DATE=
 EMAIL=
 EVAL=
+GDRIVE=
 GTR=
 INPERSON=n
 INSTRUCTOR=
@@ -55,6 +56,7 @@ KEY=
 LOCATION=
 MATERIALS=
 OPENENROL=n
+RCLONE=
 REVISION=
 TIME=
 TITLE=
@@ -65,6 +67,7 @@ ZONE=
 COPY=
 DEBUG=
 FILE=
+FORCE=
 NOCACHE=
 NOUPDATE=
 QUIET=
@@ -154,7 +157,10 @@ DATECMD="$(command -v gdate)" || DATECMD="$(command -v date)" || error "No date 
 get_json() {
 	local JSON=$1 NAME=$2 OPTION=${3:-} DATA
 
-	[[ -n $JSON && -e $JSON ]] || error "Read JSON: $JSON not found"
+	if [[ -z $JSON || ! -e $JSON ]] ; then
+		warn "Read JSON: $JSON not found for $NAME"
+		return
+	fi
 
 	DATA="$(jq --raw-output ".\"$NAME\"" "$JSON" | sed -e 's/\\n/\n/g')"
 
@@ -228,6 +234,7 @@ csv_to_json() {
 	else
 		mv "$NEW" "$META"
 	fi
+	rm -f "$NEW"
 }
 
 ################################################################################
@@ -315,11 +322,16 @@ getdate() {
 getevaluation() {
 	local STR=$1 URL
 
-	URL="$(sed -r 's/^.*http/http/' <<<"$STR")"
-	if [[ -z $EVAL && -n $URL ]] ; then
-		[[ $URL =~ https?:// ]] || error "Invalid eval URL: '$EVAL'"
-		EVAL="$URL"
-		debug "getevaluation: '$EVAL'"
+	if [[ -z $EVAL ]] ; then
+		URL="$(sed -r 's/^.*http/http/' <<<"$STR")"
+		if [[ -n $URL ]] ; then
+			[[ $URL =~ https?:// ]] || error "Invalid eval URL: '$EVAL'"
+			EVAL="$URL"
+			debug "getevaluation: '$EVAL'"
+		fi
+	elif [[ $STR =~ course= && ! $EVAL =~ course= ]] ; then
+		EVAL+="$STR"
+		warn "Evaluation URL found on 2 lines: $EVAL"
 	fi
 }
 
@@ -341,6 +353,12 @@ getkey() {
 getlocation() {
 	local LOC=$1
 	if [[ -n $LOC && -z $LOCATION ]] ; then
+		if [[ $LOC =~ ^[A-Z][SD]T$ ]] ; then
+			if [[ -z $ZONE ]] ; then
+				ZONE="$LOC"
+			fi
+			LOC="Virtual"
+		fi
 		LOCATION="$LOC"
 		debug "getlocation: '$LOCATION'"
 		if [[ $LOC = "Virtual" ]] ; then
@@ -386,6 +404,41 @@ getrevision() {
 }
 
 ################################################################################
+# Get the status of a course
+getstatus() {
+	local STR=$1
+
+	if [[ -z $GTR && -n $STR ]] ; then
+		case "$STR" in
+			GTR|y|Y|true|True|TRUE) GTR=true;;
+		esac
+		debug "getstatus: '$GTR'"
+	fi
+}
+
+################################################################################
+# Get the time of a course
+gettime() {
+	local STR=$1
+
+	if [[ -z $TIME && -n $STR ]] ; then
+		TIME=$STR
+		debug "gettime: '$TIME'"
+	fi
+}
+
+################################################################################
+# Get the timezone of a course
+getzone() {
+	local STR=$1
+
+	if [[ -z $ZONE && -n $STR ]] ; then
+		ZONE=$STR
+		debug "getzone: '$ZONE'"
+	fi
+}
+
+################################################################################
 # Get the course title
 gettitle() {
 	local STR=$1 
@@ -412,7 +465,7 @@ check_git_updates() {
 	debug "check_git_updates"
 	if [[ -z $NOUPDATE && -d $TEMPLATE/.git ]] ; then
 		info "Checking for available updates"
-		(cd $TEMPLATE
+		(cd "$TEMPLATE"
 		git remote update >/dev/null
 		if ! git status -uno | grep -q "Your branch is up to date" ; then
 			if [[ -z $UPDATE ]] ; then
@@ -458,9 +511,9 @@ getdata_json() {
 	getdate "$(read_json "$JSON_DATE" 'Date')"
 	getcourse "$(read_json "$JSON_CODE")"
 	getrevision "$(read_json "$JSON_VERSION")"
-	[[ -n $GTR ]] || GTR="$(read_json "$JSON_GTR")"
-	[[ -n $TIME ]] || TIME="$(read_json "$JSON_TIME")"
-	[[ -n $ZONE ]] || ZONE="$(read_json "$JSON_ZONE")"
+	getstatus "$(read_json "$JSON_GTR")"
+	gettime "$(read_json "$JSON_TIME")"
+	getzone "$(read_json "$JSON_ZONE")"
 	getkey "$(read_json "$JSON_KEY")"
 	getevaluation "$(read_json "$JSON_SURVEY")"
 
@@ -480,14 +533,14 @@ dir_warning() {
 ################################################################################
 # Look up class metadata from directory name
 getdata_dir() {
-	local NAME CORP LOC OTHER
+	local NAME CORP LOC STAT
 	NAME="$(basename "$(pwd)")"
 	debug "getdata_dir: $NAME"
 	# shellcheck disable=SC2034
-	local NDATE NCOURSE CORP LOC OTHER <<<"$NAME"
-	IFS=- read -r NDATE NCOURSE CORP LOC OTHER <<<"$NAME"
+	local NDATE NCOURSE CORP LOC STAT <<<"$NAME"
+	IFS=- read -r NDATE NCOURSE CORP LOC STAT <<<"$NAME"
 
-	debug "  getdata_dir: DATE:$NDATE COURSE:$NCOURSE CORP:$CORP LOC:$LOC OTHER:$OTHER"
+	debug "  getdata_dir: DATE:$NDATE COURSE:$NCOURSE CORP:$CORP LOC:$LOC STAT:$STAT"
 
 	#-----------------------------------------------------------------------
 	if [[ -n $NCOURSE ]] ; then
@@ -510,6 +563,9 @@ getdata_dir() {
 
 	#-----------------------------------------------------------------------
 	getlocation "$LOC"
+
+	#-----------------------------------------------------------------------
+	getstatus "${STAT:-GTR}"
 }
 
 ################################################################################
@@ -573,13 +629,21 @@ getdata_pdf() {
 	MDY="$(ymd_to_mdy "$DATE")"
 
 	while IFS='' read -r LINE ; do
+		[[ -n $LINE ]] || continue
+		# shellcheck disable=SC2001
+		LINE="$(sed 's/^[ 	]*//' <<<"$LINE")"
+		#debug "getdata_pdf: $LINE"
 		case "$LINE" in
-			*Subject:*LF*) getcourse "$LINE";;
+			Subject:*LF*) getcourse "$LINE";;
 			*Book:*v[0-9]*) getrevision "$LINE";;
-			*Version:*v[0-9]*) getrevision "$LINE";;
-			*Reg*:*) getkey "$LINE";;
-			*Survey*:*) getevaluation "$LINE";;
-			*Evaluation:*) getevaluation "$LINE";;
+			*LF[CDSW][0-9]*:*v[0-9]*) getrevision "$LINE";;
+			Version:*v[0-9]*) getrevision "$LINE";;
+			Registration*URL:*) continue;;
+			Registration*Code:*) getkey "$LINE";;
+			Reg*:*) getkey "$LINE";;
+			Survey*:*) getevaluation "$LINE";;
+			Evaluation:*) getevaluation "$LINE";;
+			course=*) getevaluation "$LINE";;
 			*) makeguess "$LINE" "$MDY";;
 		esac
 	done <<<"$(pdfgrep . "$FILE")"
@@ -598,9 +662,11 @@ getdata_csv() {
 	csv_to_json "$(pwd)" "$FILE" "$MDY"
 
 	local D R K E
-	IFS=, read -r D R K E <<<"$(mlr --csv cut -f \
-		"\"$JSON_DATE\",\"$JSON_VERSION\",\"$JSON_KEY\",\"$JSON_SURVEY\"" \
-		<<<"$(tr -d '"' <"$FILE")" | grep "^$MDY")"
+	IFS=, read -r D K R E <<<"$(mlr --csv cut -f \
+		"$JSON_DATE,$JSON_KEY,$JSON_VERSION,$JSON_SURVEY" <"$FILE" \
+		| grep "$DATE")"
+		#<<<"$(tr -d '"' <"$FILE" | grep -E "^Session|$DATE")")"
+	#info "MDY:$MDY DATE:$D REV:$R KEY:$K EVAL:$E"
 
 	getrevision "$R"
 	getkey "$K"
@@ -692,7 +758,7 @@ maketex() {
 
 	#-----------------------------------------------------------------------
 	if [[ $INPERSON == y ]] ; then
-		info "Building In-person class {$LOCATION:+in $LOCATION"
+		info "Building In-person class ${LOCATION:+in $LOCATION}"
 		#shellcheck disable=SC2028
 		echo '\VIRTUALfalse{}'
 	else
@@ -733,6 +799,7 @@ makepdf() {
 copypdf() {
 	local PDF=$1 NEW=$2
 	debug "copypdf"
+	# shellcheck disable=SC2086
 	$TEST cp $VERBOSE "$PDF" "$NEW"
 	if [[ -n $COPY && -n $DESKTOPDIR ]] ; then
 		if [[ -d $DESKTOPDIR ]] ; then
@@ -740,6 +807,59 @@ copypdf() {
 		else
 			warn "$DESKTOPDIR not found, so not copying there"
 		fi
+	fi
+}
+
+################################################################################
+getrclonefiles() {
+	info "rclone ls '$DIR'"
+	rclone ls "$DIR" \
+		| grep -r -E "${COURSE}_$REVISION.pdf$|SLIDES|SOLUTIONS|RESOURCES|WM" \
+		| awk '{print $4}'
+}
+
+################################################################################
+rclonefiles() {
+	[[ -n ${RCLONE:-} ]] || return 0
+
+	local DOCDIR='.'
+	if [[ -n $COPY && -n $DESKTOPDIR ]] ; then
+		DOCDIR="$DESKTOPDIR"
+	fi
+
+	if [[ -n $GDRIVE_LOCAL ]] ; then
+		local DIR="$GDRIVE_LOCAL/${COURSE:0:3}/$COURSE/$REVISION"
+		if [[ ${COURSE:3:1} = "5" ]] ; then
+			DIR="$(echo "$GDRIVE_LOCAL"/CUSTOM/"$COURSE"*/"$REVISION")"
+		fi
+		info "DIR=$DIR"
+		rsync -v "$DIR"/*{"${COURSE}_$REVISION.pdf",SLIDES,SOLUTIONS,RESOURCES,WM}* "$DOCDIR"
+		return
+	fi
+
+	if [[ -z ${GDRIVE:-} ]] ; then
+		warn "No drive specified for rclone"
+	else
+		local FILES='' FILE
+		local DIR="$GDRIVE/${COURSE:0:3}/$COURSE/$REVISION"
+		if [[ ${COURSE:3:1} = "5" ]] ; then
+			DIR="$GDRIVE/CUSTOM/$COURSE-*/$REVISION"
+		fi
+		while [[ -z $FILES ]] ; do
+			FILES="$(getrclonefiles "$DIR")"
+			sleep 2
+		done
+		# shellcheck disable=SC2086
+		info "rclone" $FILES
+		for FILE in $FILES ; do
+			info "rclone copy '$DIR/$FILE' '$DOCDIR'"
+			if [[ ! -f $DOCDIR ]] ; then
+				while true ; do
+					rclone copy "$DIR/$FILE" "$DOCDIR" && break
+					sleep 3
+				done
+			fi
+		done
 	fi
 }
 
@@ -769,6 +889,9 @@ read_config() {
 		info "Reading config from './$LOCALCONF'"
 		# shellcheck disable=SC1090
 		source "$LOCALCONF"
+	else
+		info "No config found. Default $LOCALCONF installed"
+		copy_intro_conf .
 	fi
 
 	# Link tex config file
@@ -786,7 +909,7 @@ copy_intro_conf() {
 	local DIR=${1:-.}
 	local INTRO="$DIR/$LOCALCONF" EXAMPLE="$CONFIGDIR/example-$LOCALCONF"
 	debug "copy_intro_conf: EXAMPLE=$EXAMPLE DIR=$DIR INTRO=$INTRO"
-	if [[ -f $INTRO ]] ; then
+	if [[ -z $FORCE && -f $INTRO ]] ; then
 		error "$INTRO already exists"
 	elif [[ -f $EXAMPLE ]] ; then
 		$TEST cp -v "$EXAMPLE" "$INTRO"
@@ -867,37 +990,40 @@ parse_args() {
 	debug "parse_args"
 	while [[ $# -gt 0 ]] ; do
 		case "$1" in
-			-c|--cou*) shift; getcourse "$1";;
+			-a|--all*) COPY=true; RCLONE=true;;
+			-c|--cou*) shift; getcourse "${1:-}";;
 			-C|--copy) COPY=y;;
-			-d|--date*) shift; getdate "$1";;
+			-d|--date*) shift; getdate "${1:-}";;
 			-D|--debug) DEBUG=y;;
-			-e|--eval*) shift; getevaluation "$1";;
-			-f|--file*) shift; FILE="$1";;
+			-e|--eval*) shift; getevaluation "${1:-}";;
+			-f|--file*) shift; FILE="${1:-}";;
+			-F|--force) FORCE=y;;
 			-g|--gtr) GTR=true;;
 			-G|--notgtr) GTR=false;;
-			--intro) copy_intro_conf "${2:-.}"; exit 0;;
-			-i|--in*) shift; getlocation "$1";;
+			--intro*) copy_intro_conf "${2:-.}"; exit 0;;
+			-i|--in*) shift; getlocation "${1:-}";;
 			-I|--virtual) getlocation "Virtual";;
-			-k|--key*) shift; getkey "$1";;
-			-m|--mail) shift; EMAIL="$1";;
-			-n|--name) shift; INSTRUCTOR="$1";;
+			-k|--key*) shift; getkey "${1:-}";;
+			-m|--mail) shift; EMAIL="${1:-}";;
+			-n|--name) shift; INSTRUCTOR="${1:-}";;
 			-N|--nocache) NOCACHE=y;;
-			-U|--noupdate) NOUPDATE=y;;
 			-o|--oe*) getopenenrol "OE";;
-			-O|--corp*) shift; getopenenrol "$1";;
+			-O|--corp*) shift; getopenenrol "${1:-}";;
 			-q|--quiet) QUIET=y;;
-			-r|--rev*) shift; getrevision "$1";;
-			-s|--start*|--time) shift; TIME="$1";;
+			-r|--rev*) shift; getrevision "${1:-}";;
+			-R|--rclone) RCLONE=y;;
+			-s|--start*|--time) shift; TIME="${1:-}";;
 			-S|--show) SHOW=y;;
-			-t|--tit*) shift; TITLE="$1";;
-			-R|--trace) set -x ;;
+			-t|--tit*) shift; TITLE="${1:-}";;
 			-T|--test) TEST="echo";;
+			--trace) set -x ;;
 			-u|--update) UPDATE=y;;
-			-z|--tz|--timezone|--zone) shift; ZONE="$1";;
+			-U|--noupdate) NOUPDATE=y;;
+			-z|--tz|--timezone|--zone) shift; ZONE="${1:-}";;
 			-v|--verbose) VERBOSE="-v";;
 			-V|--version) echo "$CMD v$VERSION"; exit 0;;
 			-h|--help) usage ;;
-			*) usage "$1" ;;
+			*) usage "$@" ;;
 		esac
 		shift
 	done
@@ -906,13 +1032,15 @@ parse_args() {
 ################################################################################
 parse_early_args "$@"
 read_config
-parse_args "$@"
 check_git_updates
 getdata_json
+parse_args "$@"
 getdata_dir
 getdata_pdf "$FILE"
 getdata_csv "$FILE"
 getdata_other
+rclonefiles &
+RPID="${!:-}"
 metadata
 savedata_json
 
@@ -930,3 +1058,5 @@ copypdf "$PDFFILE" "$NEWFILE"
 
 info "Created $NEWFILE"
 showpdf "$NEWFILE"
+
+wait "$RPID"
