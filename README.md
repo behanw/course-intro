@@ -26,7 +26,9 @@ You can install this tool with these exact steps:
  11. cd to/a/directory/where/you/keep/class/information
  12. mkdir YYYY.MM.DD-LFD450-OE-Virtual
  13. cd YYYY.MM.DD-LFD450-OE-Virtual
- 14. course-intro
+ 14. course-intro --info
+ 15. Edit intro.conf (this and the preceding step are optional)
+ 15. course-intro
 
 ## Global Configuration
 
