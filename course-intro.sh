@@ -265,7 +265,7 @@ getbitly() {
 	elif [[ -z $URL ]] ; then
 		error "No evaluation URL specified for $COURSE (Use --evaluation to fix)"
 	elif [[ -n $TEST ]] ; then
-		echo "$CURL -H \"$AUTH\" -H \"$TYPE\" -X POST \"$API\" -d \"$JSON\"" >&2
+		echo "$CURL -H \"$AUTH\" -H \"$TYPE\" -X POST \"$API\" -d '$JSON'" >&2
 	else
 		local DATA
 		DATA="$($CURL -H "$AUTH" -H "$TYPE" -X POST "$API" -d "$JSON" | jq --raw-output .id)"
@@ -326,11 +326,11 @@ getevaluation() {
 		URL="$(sed -r 's/^.*http/http/' <<<"$STR")"
 		if [[ -n $URL ]] ; then
 			[[ $URL =~ https?:// ]] || error "Invalid eval URL: '$EVAL'"
-			EVAL="$URL"
+			EVAL="${URL//[$'\t\r\n']/}"
 			debug "getevaluation: '$EVAL'"
 		fi
 	elif [[ $STR =~ course= && ! $EVAL =~ course= ]] ; then
-		EVAL+="$STR"
+		EVAL+="${STR//[$'\t\r\n']/}"
 		warn "Evaluation URL found on 2 lines: $EVAL"
 	fi
 }
