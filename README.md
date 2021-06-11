@@ -41,12 +41,14 @@ Make sure you adequately fill in *settings.conf* and *settings.tex* in your
  * *TEMPLATE* needs to point to the directory you checked out from github which has the latex files in it. (No default)
  * *BITLY_TOKEN* is your [bitly API TOKEN](https://support.bitly.com/hc/en-us/articles/230647907-How-do-I-generate-an-OAuth-access-token-for-the-Bitly-API-) (No default)
  * *DESKTOPDIR* points to the directory where you want the resulting PDF copied with --copy (Defaults to *$HOME/Desktop*)
+ * *GDRIVE* specifies the URI of the Google Drive share containing the slides for the course. If provided rclone will download the assets for the class into *DESKTOPDIR*.
+ * *GDRIVE_LOCAL* specifies the local path to a mounted Google Drive share containing the slides for the course. If provided rsync will be used to copy the assets for the class into *DESKTOPDIR*.
 
 ### *settings.tex*
 
  * \myname should be set to your name (and/or nickname)
  * \myemail should be set to your email address
- * \myeblurb should be set to any extra information about you
+ * \myblurb should be set to any extra information about you
  * \myclasstime should be set to your default class times
  * \myclasstz should be set to your default time zone
 
@@ -104,7 +106,7 @@ The lines from the file which will be parsed:
 
 ### *Class Roster.csv*
 
-This comma-seperated-values file is sent by the course coordinator and records
+This comma-separated-values file is sent by the course coordinator and records
 all of an instructor's upcoming classes. This file contains which course, location,
 zoom links, course keys, evaluation survey links and more. The script will read
 the appropriate meta data from this file if available.
@@ -117,7 +119,7 @@ directory.
 
 This file contains the metadata for the class in this directory. It is created
 by the script to cache information about the class from the *Class Roster.csv*
-file. Since the CSV file only shows future classes, the meta.json file largley
+file. Since the CSV file only shows future classes, the meta.json file largely
 holds information for past classes. This file is consulted before the CSV file
 if it exists.
 
