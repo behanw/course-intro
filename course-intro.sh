@@ -30,7 +30,9 @@ CODEPDF="Code.pdf"
 CURL="curl -s"
 DESKTOPDIR="$HOME/Desktop"
 LFCMURL="https://training.linuxfoundation.org/cm"
-LFOPTS="--user LFtraining:Penguin2014 --location-trusted"
+LFOPTS="--location-trusted"
+LFPASS=""
+LFUSER=""
 LOCALCONF="intro.conf"
 METAFILE="meta.json"
 PDFNAME="course-intro"
@@ -282,7 +284,7 @@ getcm() {
 	[[ -n ${FILES% } ]] || FILES="$(query_ready_json ".activities | .$COURSE | .materials | .[]" | tr '\n' ' ')"
 	if [[ -z ${FILES% } ]] ; then
 		# shellcheck disable=SC2086
-		FILES="$($CURL $LFOPTS "$LFCMURL/$COURSE/" \
+		FILES="$($CURL --user $LFUSER:$LFPASS $LFOPTS "$LFCMURL/$COURSE/" \
 			| grep "${COURSE}_$REVISION" \
 			| sed 's/^.*href="//; s/".*$//' \
 			| tr '\n' ' ')"
@@ -776,6 +778,10 @@ maketex() {
 			*RESOURCES*) echo "\\renewcommand{\\resources}{\\item $FILE}";;
 		esac
 	done
+
+	#-----------------------------------------------------------------------
+	echo "\\renewcommand{\\lfuser}{$LFUSER}"
+	echo "\\renewcommand{\\lfpass}{$LFPASS}"
 }
 
 ################################################################################
@@ -823,17 +829,18 @@ rclonefiles() {
 	[[ -n ${RCLONE:-} ]] || return 0
 
 	local DOCDIR='.'
-	if [[ -n $COPY && -n $DESKTOPDIR ]] ; then
+	if [[ -n ${COPY:-} && -n ${DESKTOPDIR:-} ]] ; then
 		DOCDIR="$DESKTOPDIR"
 	fi
 
-	if [[ -n $GDRIVE_LOCAL ]] ; then
+	if [[ -n ${GDRIVE_LOCAL:-} ]] ; then
 		local DIR="$GDRIVE_LOCAL/${COURSE:0:3}/$COURSE/$REVISION"
 		if [[ ${COURSE:3:1} = "5" ]] ; then
 			DIR="$(echo "$GDRIVE_LOCAL"/CUSTOM/"$COURSE"*/"$REVISION")"
 		fi
 		info "DIR=$DIR"
 		rsync -v "$DIR"/*{"${COURSE}_$REVISION.pdf",SLIDES,SOLUTIONS,RESOURCES,WM}* "$DOCDIR"
+		chmod go+rX "$DOCDIR"/*{"${COURSE}_$REVISION.pdf",SLIDES,SOLUTIONS,RESOURCES,WM}*
 		return
 	fi
 

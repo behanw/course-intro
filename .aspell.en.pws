@@ -1,4 +1,4 @@
-personal_ws-1.1 en 163 
+personal_ws-1.1 en 168 
 AKEY
 AUTH
 BITLY
@@ -29,7 +29,9 @@ LFCMURL
 LFD
 LFID
 LFOPTS
+LFPASS
 LFS
+LFUSER
 LFXXXX
 LFtraining
 LOC
@@ -111,6 +113,8 @@ jlistwrap
 jq
 json
 lfblue
+lfpass
+lfuser
 ln
 ly
 makeguess
@@ -143,6 +147,7 @@ printcm
 printdata
 pv
 pwd
+rX
 rclone
 rclonefile
 rclonefiles
